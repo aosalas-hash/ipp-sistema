@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPP — Coordinador CE</title>
+  <link rel="stylesheet" href="ipp-styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app" id="app" style="display:none">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">I</div>
+      <span class="brand-name">IPP</span>
+      <span class="brand-role">CE</span>
+    </div>
+    <div class="topbar-right">
+      <span class="user-info" id="user-email"></span>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Mis grupos</div>
+      <a class="nav-item active" onclick="showView('mis-grupos')" href="#">
+        <span class="nav-icon">👥</span> Grupos asignados
+      </a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ═══ VISTA: MIS GRUPOS ═══ -->
+    <div id="view-mis-grupos" class="view fade-in">
+      <div class="page-header">
+        <div class="page-title">Mis grupos</div>
+        <div class="page-sub">Grupos asignados para evaluación en campo</div>
+      </div>
+      <div id="grupos-list">
+        <div style="text-align:center;padding:40px;color:var(--muted);font-family:'DM Mono',monospace">
+          Cargando grupos…
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VISTA: EVALUACIÓN DE INTEGRANTE ═══ -->
+    <div id="view-integrante" class="view fade-in" style="display:none">
+      <div class="page-header flex-between">
+        <div>
+          <button class="btn btn-secondary btn-sm" onclick="volverAGrupo()" style="margin-bottom:12px">
+            ← Volver al grupo
+          </button>
+          <div class="page-title" id="int-nombre">Evaluación individual</div>
+          <div class="page-sub" id="int-sub"></div>
+        </div>
+        <div id="int-score-mini"></div>
+      </div>
+
+      <!-- Alto riesgo alert -->
+      <div id="alto-riesgo-alert" class="alert alert-danger" style="display:none">
+        <span class="alert-icon">🚨</span>
+        <div>
+          <strong>ALTO RIESGO detectado.</strong> Debes revisar cada punto antes de continuar.
+          La decisión final requiere motivo obligatorio.
+        </div>
+      </div>
+
+      <!-- Checklist conversacional -->
+      <div class="card" id="checklist-card">
+        <div class="card-title">🗣️ Checklist conversacional</div>
+        <div id="checklist-items"></div>
+      </div>
+
+      <!-- Decisión -->
+      <div class="card" style="margin-top:20px" id="decision-card">
+        <div class="card-title">📋 Decisión CE</div>
+
+        <div class="form-grid" style="margin-bottom:20px">
+          <div class="field">
+            <label>¿Designar como líder del grupo?</label>
+            <select id="ce-lider">
+              <option value="false">No</option>
+              <option value="true">Sí</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Decisión</label>
+            <select id="ce-decision" onchange="toggleMotivoRechazo()">
+              <option value="">Selecciona…</option>
+              <option value="aprobado">Aprobar integrante</option>
+              <option value="rechazado">Rechazar integrante</option>
+            </select>
+          </div>
+          <div class="field full" id="motivo-rechazo-field" style="display:none">
+            <label id="motivo-label">Motivo de rechazo <span id="motivo-req"></span></label>
+            <textarea id="ce-motivo" rows="3" placeholder="Describe el motivo…"></textarea>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btn-guardar-decision" onclick="guardarDecisionCE()"
+          disabled style="width:100%">
+          Guardar decisión
+        </button>
+      </div>
+
+      <!-- Encuesta piloto (mostrar después de aprobar) -->
+      <div class="card" style="margin-top:20px;display:none" id="encuesta-card">
+        <div class="card-title">📊 Encuesta piloto</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px">
+          Completa las dos escalas de evaluación grupal
+        </p>
+        <div id="encuesta-content"></div>
+        <button class="btn btn-primary" style="margin-top:20px;width:100%" onclick="guardarEncuesta()">
+          Guardar encuesta
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ VISTA: EVALUACIÓN GRUPAL ═══ -->
+    <div id="view-grupal" class="view fade-in" style="display:none">
+      <div class="page-header flex-between">
+        <div>
+          <button class="btn btn-secondary btn-sm" onclick="volverAGrupoDesdeGrupal()" style="margin-bottom:12px">
+            ← Volver
+          </button>
+          <div class="page-title" id="grupal-titulo">Calificación grupal</div>
+          <div class="page-sub">Evaluación matemática del grupo — Instrumento grupal IPP</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px" id="grupal-integrantes-card">
+        <div class="card-title">📊 Scores individuales del grupo</div>
+        <div id="grupal-tabla"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px" id="grupal-score-card">
+        <div class="card-title">🧮 Score grupal calculado</div>
+        <div id="grupal-resultado"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📋 Decisión grupal CE</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Decisión del grupo</label>
+            <select id="dec-grupal" onchange="toggleMotivoGrupal()">
+              <option value="">Selecciona…</option>
+              <option value="aprobado">Aprobar grupo</option>
+              <option value="rechazado">Rechazar grupo</option>
+            </select>
+          </div>
+          <div class="field full" id="motivo-grupal-field" style="display:none">
+            <label id="motivo-grupal-label">Motivo de rechazo</label>
+            <textarea id="motivo-grupal" rows="3" placeholder="Describe el motivo…"></textarea>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:16px;width:100%"
+          id="btn-guardar-grupal" onclick="guardarDecisionGrupal()" disabled>
+          Guardar decisión grupal
+        </button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="ipp-core.js"></script>
+<script>
+// ─── State ──────────────────────────────────────────────────
+let currentUser = null;
+let grupoActual = null;
+let integranteActual = null;
+let integrantesGrupo = [];
+let checklistState = {};
+
+// Checklist conversacional (preguntas)
+const CHECKLIST = [
+  {
+    id: 'conoce_producto',
+    q: '¿La prospecto sabe cómo funciona el crédito grupal?',
+    hint: 'Verificar que comprende montos, plazos y responsabilidad solidaria',
+    tipo: 'yesno'
+  },
+  {
+    id: 'conoce_grupo',
+    q: '¿Conoce a las demás integrantes del grupo?',
+    hint: 'Deben tener relación previa de confianza',
+    tipo: 'yesno'
+  },
+  {
+    id: 'domicilio_verificado',
+    q: '¿Se verificó físicamente el domicilio declarado?',
+    hint: 'Comparar con INE y observación en campo',
+    tipo: 'yesno'
+  },
+  {
+    id: 'negocio_verificado',
+    q: '¿Se verificó que el negocio existe y opera?',
+    hint: 'Observación directa del punto de venta',
+    tipo: 'yesno'
+  },
+  {
+    id: 'capacidad_pago',
+    q: '¿El flujo neto declarado parece consistente con lo observado?',
+    hint: 'Comparar ingresos declarados vs. nivel de vida aparente',
+    tipo: 'yesno'
+  },
+  {
+    id: 'sin_presiones',
+    q: '¿La prospecto toma la decisión libremente, sin presiones externas?',
+    hint: 'Detectar señales de coacción o influencia de terceros',
+    tipo: 'yesno'
+  },
+  {
+    id: 'disponibilidad_pago',
+    q: '¿Cuenta con disponibilidad de efectivo el día de pago acordado?',
+    hint: 'Confirmar que el día de pago grupal no genera conflicto',
+    tipo: 'yesno'
+  },
+  {
+    id: 'observaciones',
+    q: 'Observaciones adicionales del asesor',
+    hint: 'Cualquier detalle relevante observado en campo',
+    tipo: 'text'
+  }
+];
+
+// Encuesta piloto: 2 escalas
+const ENCUESTA_ESCALAS = [
+  {
+    id: 'cohesion',
+    titulo: 'Escala 1 — Cohesión y confianza del grupo',
+    items: [
+      { id: 'c1', q: '¿Las integrantes se conocen entre sí?' },
+      { id: 'c2', q: '¿Existe comunicación activa entre ellas?' },
+      { id: 'c3', q: '¿Hay disposición a apoyarse en caso de dificultad?' },
+      { id: 'c4', q: '¿Existe acuerdo sobre la líder del grupo?' },
+    ]
+  },
+  {
+    id: 'viabilidad',
+    titulo: 'Escala 2 — Viabilidad operativa',
+    items: [
+      { id: 'v1', q: '¿Los negocios de las integrantes son compatibles en horario de pago?' },
+      { id: 'v2', q: '¿El grupo tiene un punto de reunión acordado?' },
+      { id: 'v3', q: '¿Las integrantes comprenden la responsabilidad solidaria?' },
+      { id: 'v4', q: '¿El grupo está dispuesto a formalizar en los próximos 7 días?' },
+    ]
+  }
+];
+
+// ─── Init ─────────────────────────────────────────────────
+(async () => {
+  const auth = await requireAuth(['CE']);
+  if (!auth) return;
+  currentUser = auth.profile;
+  document.getElementById('user-email').textContent = auth.session.user.email;
+  document.getElementById('app').style.display = 'grid';
+  cargarMisGrupos();
+})();
+
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
+  const el = document.getElementById(`view-${v}`);
+  if (el) { el.style.display = 'block'; }
+}
+
+// ─── Mis grupos ────────────────────────────────────────────
+async function cargarMisGrupos() {
+  // CE solo ve grupos asignados a él
+  const { data: asignaciones } = await sb.from('asignaciones_ce')
+    .select(`grupo_id, direccion, grupos(id, nombre, estatus, num_integrantes)`)
+    .eq('ce_id', currentUser.id);
+
+  const container = document.getElementById('grupos-list');
+
+  if (!asignaciones?.length) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:60px;color:var(--muted)">
+        <div style="font-size:40px;margin-bottom:16px">📭</div>
+        <div style="font-family:'DM Mono',monospace;font-size:13px">Sin grupos asignados por el momento</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = asignaciones.map(a => {
+    const g = a.grupos;
+    const puedeEvaluar = ['por_visitar', 'asignado', 'en_visita'].includes(g.estatus);
+    return `
+      <div class="card" style="margin-bottom:16px">
+        <div class="flex-between" style="margin-bottom:16px">
+          <div>
+            <div style="font-size:18px;font-weight:700">${g.nombre}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${a.direccion}</div>
+          </div>
+          <div>${estatusBadge(g.estatus)}</div>
+        </div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px">
+          ${g.num_integrantes || 0} integrantes
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" onclick="abrirGrupo('${g.id}')" ${!puedeEvaluar ? 'disabled' : ''}>
+            ${puedeEvaluar ? '▶ Evaluar grupo' : '✓ Evaluación completada'}
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Abrir grupo ────────────────────────────────────────────
+async function abrirGrupo(grupoId) {
+  const { data: grupo } = await sb.from('grupos').select('*').eq('id', grupoId).single();
+  const { data: integrantes } = await sb.from('integrantes')
+    .select(`id, es_lider, evaluacion_ce, decision_ce, motivo_rechazo,
+             prospectos(id, nombre_completo, score_ipp, grado_ipp, grado_postburo, ingresos_semanales, gastos_semanales, capacidad_pago)`)
+    .eq('grupo_id', grupoId);
+
+  grupoActual = grupo;
+  integrantesGrupo = integrantes || [];
+
+  // Actualizar estatus a en_visita si aún es por_visitar
+  if (grupo.estatus === 'por_visitar' || grupo.estatus === 'asignado') {
+    await sb.from('grupos').update({ estatus: 'en_visita' }).eq('id', grupoId);
+    grupoActual.estatus = 'en_visita';
+  }
+
+  renderGrupoCard();
+}
+
+function renderGrupoCard() {
+  const todosCE = integrantesGrupo.every(i => i.decision_ce);
+  const container = document.getElementById('grupos-list');
+
+  container.innerHTML = `
+    <div class="page-header flex-between">
+      <div>
+        <div class="page-title">${grupoActual.nombre}</div>
+        <div class="page-sub">Evaluación individual de integrantes</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="cargarMisGrupos()">← Mis grupos</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Integrantes del grupo</div>
+      ${integrantesGrupo.map(i => {
+        const p = i.prospectos;
+        const evaluado = !!i.decision_ce;
+        const aprobado = i.decision_ce === 'aprobado';
+        return `
+          <div class="checklist-item">
+            <div class="check-circle ${evaluado ? 'done' : ''}"
+              onclick="${evaluado ? '' : `evalIntegrante('${i.id}')`}"
+              title="${evaluado ? 'Evaluado' : 'Click para evaluar'}">
+              ${evaluado ? '✓' : ''}
+            </div>
+            <div class="checklist-content">
+              <div class="checklist-q">${p.nombre_completo} ${i.es_lider ? '⭐' : ''}</div>
+              <div class="checklist-hint">
+                Score: ${p.score_ipp} · ${badgeGrado(p.grado_ipp)}
+                ${p.grado_postburo ? `→ Post-buró: ${badgeGrado(p.grado_postburo)}` : ''}
+              </div>
+              ${evaluado ? `
+                <div style="margin-top:6px">
+                  ${aprobado
+                    ? '<span style="color:var(--success);font-size:12px;font-weight:600">✓ APROBADA</span>'
+                    : `<span style="color:var(--danger);font-size:12px;font-weight:600">✗ RECHAZADA</span>`
+                  }
+                  ${i.motivo_rechazo ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">${i.motivo_rechazo}</div>` : ''}
+                </div>
+              ` : `<button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="evalIntegrante('${i.id}')">Evaluar</button>`}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+
+    ${todosCE ? `
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" style="width:100%" onclick="irCalificacionGrupal()">
+          → Calificación grupal
+        </button>
+      </div>
+    ` : `
+      <div class="alert alert-info" style="margin-top:16px">
+        <span class="alert-icon">ℹ️</span>
+        Evalúa a todas las integrantes para habilitar la calificación grupal
+      </div>
+    `}
+  `;
+}
+
+// ─── Evaluar integrante ─────────────────────────────────────
+async function evalIntegrante(integranteId) {
+  const integrante = integrantesGrupo.find(i => i.id === integranteId);
+  if (!integrante) return;
+  integranteActual = integrante;
+  const p = integrante.prospectos;
+
+  document.getElementById('int-nombre').textContent = p.nombre_completo;
+  document.getElementById('int-sub').textContent =
+    `Score: ${p.score_ipp} · Grado ${p.grado_ipp} · Ingresos: $${(p.ingresos_semanales||0).toLocaleString()}/sem`;
+
+  document.getElementById('int-score-mini').innerHTML = `
+    <div style="text-align:center">
+      <div style="font-size:40px;font-weight:800;font-family:'DM Mono',monospace">${p.score_ipp}</div>
+      ${badgeGrado(p.grado_ipp)}
+    </div>
+  `;
+
+  // Alert de alto riesgo
+  const esAltoRiesgo = p.grado_ipp === 'C' || p.grado_postburo === 'C';
+  document.getElementById('alto-riesgo-alert').style.display = esAltoRiesgo ? 'flex' : 'none';
+
+  // Reset checklist
+  checklistState = {};
+  renderChecklist();
+
+  // Reset decisión
+  document.getElementById('ce-decision').value = '';
+  document.getElementById('ce-lider').value = 'false';
+  document.getElementById('motivo-rechazo-field').style.display = 'none';
+  document.getElementById('btn-guardar-decision').disabled = true;
+  document.getElementById('encuesta-card').style.display = 'none';
+
+  showView('integrante');
+}
+
+function renderChecklist() {
+  const container = document.getElementById('checklist-items');
+  container.innerHTML = CHECKLIST.map(item => {
+    const val = checklistState[item.id];
+    if (item.tipo === 'text') {
+      return `
+        <div class="checklist-item">
+          <div class="check-circle ${val ? 'done' : ''}" onclick="">📝</div>
+          <div class="checklist-content">
+            <div class="checklist-q">${item.q}</div>
+            <div class="checklist-answer">
+              <textarea class="field" style="width:100%;background:var(--bg);border:1px solid var(--border);
+                border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;
+                padding:10px;outline:none;resize:vertical;min-height:60px"
+                placeholder="Observaciones…"
+                onchange="checklistState['${item.id}']=this.value;verificarChecklist()"
+              >${val||''}</textarea>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div class="checklist-item">
+        <div class="check-circle ${val==='si' ? 'done' : ''}"
+          style="${val==='no' ? 'border-color:var(--danger)' : ''}">
+          ${val === 'si' ? '✓' : val === 'no' ? '✗' : ''}
+        </div>
+        <div class="checklist-content">
+          <div class="checklist-q">${item.q}</div>
+          <div class="checklist-hint">${item.hint}</div>
+          <div class="checklist-answer row" style="margin-top:10px;gap:10px">
+            <button class="btn btn-sm ${val==='si' ? 'btn-primary' : 'btn-secondary'}"
+              onclick="checklistState['${item.id}']='si';renderChecklist();verificarChecklist()">
+              ✓ Sí
+            </button>
+            <button class="btn btn-sm ${val==='no' ? 'btn-danger' : 'btn-secondary'}"
+              onclick="checklistState['${item.id}']='no';renderChecklist();verificarChecklist()">
+              ✗ No
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function verificarChecklist() {
+  const respondidas = CHECKLIST.filter(i => i.tipo === 'yesno').every(i => checklistState[i.id]);
+  document.getElementById('btn-guardar-decision').disabled = !respondidas ||
+    !document.getElementById('ce-decision').value;
+}
+
+function toggleMotivoRechazo() {
+  const decision = document.getElementById('ce-decision').value;
+  const field = document.getElementById('motivo-rechazo-field');
+  const p = integranteActual?.prospectos;
+  const esAltoRiesgo = p?.grado_ipp === 'C' || p?.grado_postburo === 'C';
+
+  if (decision === 'rechazado') {
+    field.style.display = 'block';
+    const req = esAltoRiesgo || p?.score_ipp >= 65 ? '(obligatorio)' : '(opcional)';
+    document.getElementById('motivo-req').textContent = req;
+    document.getElementById('motivo-req').style.color = esAltoRiesgo ? 'var(--danger)' : 'var(--muted)';
+  } else {
+    field.style.display = 'none';
+  }
+  verificarChecklist();
+}
+
+async function guardarDecisionCE() {
+  const decision = document.getElementById('ce-decision').value;
+  const esLider = document.getElementById('ce-lider').value === 'true';
+  const motivo = document.getElementById('ce-motivo').value.trim();
+  const p = integranteActual.prospectos;
+
+  // Validar motivo obligatorio
+  const scoreAlto = p.score_ipp >= 65;
+  if (decision === 'rechazado' && scoreAlto && !motivo) {
+    toast('El motivo de rechazo es obligatorio para este perfil (score ≥ 65)', 'error');
+    return;
+  }
+
+  const evaluacion = {
+    respuestas: checklistState,
+    timestamp: new Date().toISOString()
+  };
+
+  const { error } = await sb.from('integrantes').update({
+    decision_ce: decision,
+    es_lider: esLider,
+    motivo_rechazo: motivo || null,
+    evaluacion_ce: JSON.stringify(evaluacion),
+    evaluado_por: currentUser.id,
+    evaluado_at: new Date().toISOString()
+  }).eq('id', integranteActual.id);
+
+  if (error) { toast('Error guardando: ' + error.message, 'error'); return; }
+
+  // Actualizar estatus del prospecto
+  await sb.from('prospectos').update({
+    estatus: decision === 'aprobado' ? 'aprobado_ce' : 'rechazado_ce'
+  }).eq('id', p.id);
+
+  // Actualizar estado local
+  const idx = integrantesGrupo.findIndex(i => i.id === integranteActual.id);
+  if (idx >= 0) {
+    integrantesGrupo[idx].decision_ce = decision;
+    integrantesGrupo[idx].es_lider = esLider;
+    integrantesGrupo[idx].motivo_rechazo = motivo || null;
+  }
+
+  toast(`Integrante ${decision === 'aprobado' ? 'aprobada ✓' : 'rechazada ✗'}`);
+
+  // Mostrar encuesta si se aprobó
+  if (decision === 'aprobado') {
+    renderEncuesta();
+    document.getElementById('encuesta-card').style.display = 'block';
+  } else {
+    volverAGrupo();
+  }
+}
+
+// ─── Encuesta piloto ─────────────────────────────────────────
+function renderEncuesta() {
+  document.getElementById('encuesta-content').innerHTML = ENCUESTA_ESCALAS.map(escala => `
+    <div style="margin-bottom:24px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--muted2)">${escala.titulo}</div>
+      ${escala.items.map(item => `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          padding:12px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:13px;flex:1;padding-right:16px">${item.q}</div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            ${[1,2,3,4,5].map(n => `
+              <label style="cursor:pointer">
+                <input type="radio" name="enc-${item.id}" value="${n}" style="display:none" />
+                <div class="likert-btn" data-id="${item.id}" data-val="${n}"
+                  style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);
+                    display:flex;align-items:center;justify-content:center;font-size:12px;
+                    font-family:'DM Mono',monospace;cursor:pointer;transition:all 0.15s"
+                  onclick="selectLikert('${item.id}',${n})">
+                  ${n}
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+const likertState = {};
+function selectLikert(id, val) {
+  likertState[id] = val;
+  document.querySelectorAll(`[data-id="${id}"]`).forEach(el => {
+    const isSelected = parseInt(el.dataset.val) === val;
+    el.style.background = isSelected ? 'rgba(232,255,71,0.15)' : 'transparent';
+    el.style.borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
+    el.style.color = isSelected ? 'var(--accent)' : 'var(--text)';
+  });
+}
+
+async function guardarEncuesta() {
+  const allItems = ENCUESTA_ESCALAS.flatMap(e => e.items.map(i => i.id));
+  const sinResponder = allItems.filter(id => !likertState[id]);
+  if (sinResponder.length) {
+    toast(`Responde todas las preguntas (${sinResponder.length} pendientes)`, 'warn');
+    return;
+  }
+
+  const scoreEscala1 = ENCUESTA_ESCALAS[0].items.reduce((sum, i) => sum + (likertState[i.id]||0), 0);
+  const scoreEscala2 = ENCUESTA_ESCALAS[1].items.reduce((sum, i) => sum + (likertState[i.id]||0), 0);
+
+  const { error } = await sb.from('encuestas_piloto').insert({
+    integrante_id: integranteActual.id,
+    grupo_id: grupoActual.id,
+    respuestas: JSON.stringify(likertState),
+    score_escala1: scoreEscala1,
+    score_escala2: scoreEscala2,
+    score_total: scoreEscala1 + scoreEscala2,
+    aplicada_por: currentUser.id
+  });
+
+  if (error) { toast('Error guardando encuesta: ' + error.message, 'error'); return; }
+  toast('Encuesta guardada ✓');
+  volverAGrupo();
+}
+
+// ─── Calificación grupal ────────────────────────────────────
+async function irCalificacionGrupal() {
+  showView('grupal');
+  document.getElementById('grupal-titulo').textContent = `Calificación grupal — ${grupoActual.nombre}`;
+
+  const aprobados = integrantesGrupo.filter(i => i.decision_ce === 'aprobado');
+  const rechazados = integrantesGrupo.filter(i => i.decision_ce !== 'aprobado');
+  const scores = aprobados.map(i => i.prospectos.score_ipp || 0);
+
+  // Lógica matemática grupal:
+  // Score grupal = promedio ponderado de scores individuales aprobados
+  // Penalización si hay integrantes rechazados
+  const scorePromedio = scores.length ? Math.round(scores.reduce((a,b) => a+b, 0) / scores.length) : 0;
+  const penalizacion = rechazados.length * 5; // -5 pts por cada rechazado
+  const scoreGrupal = Math.max(0, scorePromedio - penalizacion);
+
+  let gradoGrupal;
+  if (scoreGrupal >= 80) gradoGrupal = 'A';
+  else if (scoreGrupal >= 65) gradoGrupal = 'B';
+  else if (scoreGrupal >= 50) gradoGrupal = 'C';
+  else gradoGrupal = 'D';
+
+  // Si algún integrante es D individual → grupo no puede ser A
+  const tieneD = aprobados.some(i => i.prospectos.grado_postburo === 'D' || i.prospectos.grado_ipp === 'D');
+  if (tieneD && gradoGrupal === 'A') gradoGrupal = 'B';
+
+  document.getElementById('grupal-tabla').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Integrante</th>
+            <th>Score IPP</th>
+            <th>Grado individual</th>
+            <th>Decisión CE</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${integrantesGrupo.map(i => {
+            const p = i.prospectos;
+            return `
+              <tr>
+                <td>${p.nombre_completo} ${i.es_lider ? '⭐' : ''}</td>
+                <td><strong style="font-family:'DM Mono',monospace">${p.score_ipp}</strong></td>
+                <td>${badgeGrado(p.grado_ipp)}</td>
+                <td>${i.decision_ce === 'aprobado'
+                  ? '<span style="color:var(--success);font-weight:600">✓ Aprobada</span>'
+                  : '<span style="color:var(--danger);font-weight:600">✗ Rechazada</span>'
+                }</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const colorGrupal = { A: '#2ed573', B: '#7c6af7', C: '#ffa502', D: '#ff4757' }[gradoGrupal];
+  document.getElementById('grupal-resultado').innerHTML = `
+    <div style="display:flex;align-items:center;gap:32px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">SCORE PROMEDIO INDIVIDUAL</div>
+        <div style="font-size:28px;font-weight:800;font-family:'DM Mono',monospace">${scorePromedio}</div>
+      </div>
+      ${penalizacion > 0 ? `
+        <div>
+          <div style="font-size:11px;color:var(--danger);margin-bottom:6px">PENALIZACIÓN</div>
+          <div style="font-size:28px;font-weight:800;font-family:'DM Mono',monospace;color:var(--danger)">-${penalizacion}</div>
+          <div style="font-size:11px;color:var(--muted)">${rechazados.length} integrante(s) rechazada(s)</div>
+        </div>
+      ` : ''}
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">SCORE GRUPAL FINAL</div>
+        <div style="font-size:48px;font-weight:800;font-family:'DM Mono',monospace;color:${colorGrupal}">${scoreGrupal}</div>
+        ${badgeGrado(gradoGrupal)}
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="score-bar"><div class="score-bar-fill" style="width:${scoreGrupal}%;background:${colorGrupal}"></div></div>
+    </div>
+    ${gradoGrupal === 'D' ? `
+      <div class="alert alert-danger" style="margin-top:16px">
+        <span class="alert-icon">🚨</span>
+        Score grupal insuficiente. Se requiere motivo obligatorio para rechazar.
+      </div>
+    ` : ''}
+  `;
+
+  // Almacenar para guardado
+  window._scoreGrupal = scoreGrupal;
+  window._gradoGrupal = gradoGrupal;
+
+  // Habilitar botón guardar al seleccionar decisión
+  document.getElementById('dec-grupal').onchange = () => {
+    toggleMotivoGrupal();
+    document.getElementById('btn-guardar-grupal').disabled = false;
+  };
+}
+
+function toggleMotivoGrupal() {
+  const dec = document.getElementById('dec-grupal').value;
+  const esAltoScore = (window._scoreGrupal || 0) >= 65;
+  const field = document.getElementById('motivo-grupal-field');
+
+  if (dec === 'rechazado') {
+    field.style.display = 'block';
+    document.getElementById('motivo-grupal-label').innerHTML =
+      `Motivo de rechazo ${esAltoScore ? '<span style="color:var(--danger)">(obligatorio — score alto)</span>' : '(opcional)'}`;
+  } else {
+    field.style.display = 'none';
+  }
+}
+
+async function guardarDecisionGrupal() {
+  const decision = document.getElementById('dec-grupal').value;
+  const motivo = document.getElementById('motivo-grupal').value.trim();
+  const esAltoScore = (window._scoreGrupal || 0) >= 65;
+
+  if (decision === 'rechazado' && esAltoScore && !motivo) {
+    toast('Motivo obligatorio cuando el score grupal es ≥ 65', 'error');
+    return;
+  }
+
+  const { error } = await sb.from('grupos').update({
+    score_grupal: window._scoreGrupal,
+    grado_grupal: window._gradoGrupal,
+    decision_ce: decision,
+    motivo_rechazo_ce: motivo || null,
+    estatus: decision === 'aprobado' ? 'aprobado_ce' : 'rechazado_ce'
+  }).eq('id', grupoActual.id);
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  toast(`Grupo ${decision === 'aprobado' ? 'APROBADO ✓' : 'RECHAZADO ✗'}`);
+  cargarMisGrupos();
+  showView('mis-grupos');
+}
+
+function volverAGrupo() {
+  showView('mis-grupos');
+  renderGrupoCard();
+}
+
+function volverAGrupoDesdeGrupal() {
+  showView('mis-grupos');
+  renderGrupoCard();
+}
+</script>
+</body>
+</html>

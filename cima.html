@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPP — CIMA</title>
+  <link rel="stylesheet" href="ipp-styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app" id="app" style="display:none">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">I</div>
+      <span class="brand-name">IPP Sistema</span>
+      <span class="brand-role">CIMA</span>
+    </div>
+    <div class="topbar-right">
+      <span class="user-info" id="user-email"></span>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Operativo</div>
+      <a class="nav-item active" onclick="showView('prospectos')" href="#">
+        <span class="nav-icon">👤</span> Prospectos
+      </a>
+      <a class="nav-item" onclick="showView('grupos')" href="#">
+        <span class="nav-icon">👥</span> Grupos
+      </a>
+      <a class="nav-item" onclick="showView('nuevo-prospecto')" href="#">
+        <span class="nav-icon">➕</span> Nuevo prospecto
+      </a>
+      <a class="nav-item" onclick="showView('postburo')" href="#">
+        <span class="nav-icon">📄</span> Evaluación post-buró
+      </a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Gestión</div>
+      <a class="nav-item" onclick="showView('asignaciones')" href="#">
+        <span class="nav-icon">🗂️</span> Asignaciones CE
+      </a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ═══ VISTA: PROSPECTOS ═══ -->
+    <div id="view-prospectos" class="view fade-in">
+      <div class="page-header flex-between">
+        <div>
+          <div class="page-title">Prospectos</div>
+          <div class="page-sub">Listado completo de prospectos evaluados con IPP</div>
+        </div>
+        <button class="btn btn-primary" onclick="showView('nuevo-prospecto')">+ Nuevo prospecto</button>
+      </div>
+      <div class="filters">
+        <input class="search-input" id="search-prosp" placeholder="Buscar nombre o CURP…" oninput="filtrarProspectos()" />
+        <select class="filter-select" id="filter-grado" onchange="filtrarProspectos()">
+          <option value="">Todos los grados</option>
+          <option value="A">Grado A</option>
+          <option value="B">Grado B</option>
+          <option value="C">Grado C</option>
+          <option value="D">Grado D</option>
+        </select>
+        <select class="filter-select" id="filter-estatus" onchange="filtrarProspectos()">
+          <option value="">Todos los estatus</option>
+          <option value="prospecto">Prospecto</option>
+          <option value="pre_aprobado">Pre-aprobado</option>
+          <option value="postburo_aprobado">Post-buró OK</option>
+          <option value="postburo_rechazado">Rechazado</option>
+          <option value="por_visitar">Por visitar</option>
+          <option value="aprobado_ce">Aprobado CE</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>CURP</th>
+              <th>Score IPP</th>
+              <th>Grado</th>
+              <th>Post-buró</th>
+              <th>Estatus</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-prospectos">
+            <tr class="empty-row"><td colspan="7">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ VISTA: GRUPOS ═══ -->
+    <div id="view-grupos" class="view fade-in" style="display:none">
+      <div class="page-header flex-between">
+        <div>
+          <div class="page-title">Grupos</div>
+          <div class="page-sub">Gestión de grupos de crédito</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirModalNuevoGrupo()">+ Nuevo grupo</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre grupo</th>
+              <th>Integrantes</th>
+              <th>CE asignado</th>
+              <th>Estatus</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-grupos">
+            <tr class="empty-row"><td colspan="5">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ VISTA: NUEVO PROSPECTO (formulario IPP completo) ═══ -->
+    <div id="view-nuevo-prospecto" class="view fade-in" style="display:none">
+      <div class="page-header">
+        <div class="page-title">Nuevo prospecto</div>
+        <div class="page-sub">Formulario IPP — Pre-evaluación individual</div>
+      </div>
+
+      <!-- Sección 1: Datos personales -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">📋 Sección 1 — Datos personales</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Nombre(s)</label>
+            <input type="text" id="f-nombres" placeholder="Ej: Saira Ines" />
+          </div>
+          <div class="field">
+            <label>Apellido paterno</label>
+            <input type="text" id="f-ap-pat" />
+          </div>
+          <div class="field">
+            <label>Apellido materno</label>
+            <input type="text" id="f-ap-mat" />
+          </div>
+          <div class="field">
+            <label>CURP</label>
+            <input type="text" id="f-curp" placeholder="18 caracteres" maxlength="18"
+              oninput="this.value=this.value.toUpperCase()" />
+          </div>
+          <div class="field">
+            <label>Fecha de nacimiento</label>
+            <input type="date" id="f-fnac" />
+          </div>
+          <div class="field">
+            <label>Entidad de nacimiento</label>
+            <select id="f-estado-nac"></select>
+          </div>
+          <div class="field">
+            <label>Teléfono</label>
+            <input type="tel" id="f-telefono" placeholder="10 dígitos" maxlength="10" />
+          </div>
+          <div class="field">
+            <label>Confirmar teléfono</label>
+            <input type="tel" id="f-telefono2" placeholder="10 dígitos" maxlength="10" />
+          </div>
+          <div class="field">
+            <label>¿Es referida?</label>
+            <select id="f-referida">
+              <option value="false">No</option>
+              <option value="true">Sí</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección 2: Domicilio -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">🏠 Sección 2 — Dirección y estabilidad residencial</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Calle</label>
+            <input type="text" id="f-calle" />
+          </div>
+          <div class="field">
+            <label>No. exterior</label>
+            <input type="text" id="f-next" />
+          </div>
+          <div class="field">
+            <label>No. interior</label>
+            <input type="text" id="f-nint" placeholder="Opcional" />
+          </div>
+          <div class="field">
+            <label>Código postal</label>
+            <input type="text" id="f-cp" maxlength="5" />
+          </div>
+          <div class="field">
+            <label>Colonia / Población</label>
+            <input type="text" id="f-colonia" />
+          </div>
+          <div class="field">
+            <label>Alcaldía / Municipio</label>
+            <input type="text" id="f-municipio" />
+          </div>
+          <div class="field">
+            <label>Estado</label>
+            <select id="f-estado"></select>
+          </div>
+          <!-- SCORING -->
+          <div class="field">
+            <label>Antigüedad del domicilio ⚡</label>
+            <select id="f-ant-dom">
+              <option value="">Selecciona…</option>
+              <option value="mas6">Más de 6 años</option>
+              <option value="4a6">4 a 6 años</option>
+              <option value="1a3">1 a 3 años</option>
+              <option value="menos1">Menos de un año</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Tipo de domicilio ⚡</label>
+            <select id="f-tipo-dom">
+              <option value="">Selecciona…</option>
+              <option value="propia">Propia</option>
+              <option value="hipoteca">Hipoteca o pagando</option>
+              <option value="familiar">Familiar</option>
+              <option value="rentada">Rentada o prestada</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Coincidencia INE-domicilio ⚡</label>
+            <select id="f-ine">
+              <option value="">Selecciona…</option>
+              <option value="si">Sí coincide</option>
+              <option value="no">No coincide</option>
+              <option value="sin-ine">No cuenta con INE actualizada</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección 3: Actividad económica -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">💼 Sección 3 — Actividad económica y finanzas</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Antigüedad del negocio ⚡</label>
+            <select id="f-ant-neg">
+              <option value="">Selecciona…</option>
+              <option value="mas6">Más de 6 años</option>
+              <option value="4a6">4 a 6 años</option>
+              <option value="1a3">1 a 3 años</option>
+              <option value="menos1">Menos de un año</option>
+              <option value="recien">Apenas abrió negocio</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Ubicación del negocio ⚡</label>
+            <select id="f-ubic-neg">
+              <option value="">Selecciona…</option>
+              <optgroup label="Tier Alto (13 pts)">
+                <option value="tienda">Tienda</option>
+                <option value="mercado">Mercado</option>
+                <option value="oficina">Oficina</option>
+                <option value="fabrica">Fábrica</option>
+                <option value="taller">Taller</option>
+              </optgroup>
+              <optgroup label="Tier Medio (9 pts)">
+                <option value="locales-comun">Locales en comunidad</option>
+                <option value="kiosco">Kiosco</option>
+                <option value="puesto-fijo-tianguis">Puesto fijo tianguis</option>
+                <option value="puesto-fijo-via">Puesto fijo vía pública</option>
+                <option value="domicilio-especial">Domicilio especial</option>
+              </optgroup>
+              <optgroup label="Tier Bajo (5 pts)">
+                <option value="puesto-improv-tianguis">Puesto improvisado tianguis</option>
+                <option value="puesto-improv-via">Puesto improvisado vía pública</option>
+                <option value="vehiculo">Vehículo</option>
+                <option value="otro-local">Otro con local</option>
+                <option value="otro-sin-local">Otro sin local</option>
+                <option value="ambulante">Ambulante</option>
+                <option value="domicilio-cliente">Domicilio del cliente</option>
+                <option value="catalogo">Catálogo</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="field">
+            <label>Ingresos semanales ($) ⚡</label>
+            <input type="number" id="f-ingresos" placeholder="0.00" min="0" oninput="calcularScore()" />
+          </div>
+          <div class="field">
+            <label>Gastos semanales ($) ⚡</label>
+            <input type="number" id="f-gastos" placeholder="0.00" min="0" oninput="calcularScore()" />
+          </div>
+          <div class="field">
+            <label>Capacidad de pago semanal ($) ⚡</label>
+            <input type="number" id="f-capacidad" placeholder="0.00" min="0" oninput="calcularScore()" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección 4: Experiencia crediticia -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">💳 Sección 4 — Experiencia crediticia</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Experiencia con créditos grupales ⚡</label>
+            <select id="f-exp-grupal">
+              <option value="">Selecciona…</option>
+              <option value="ninguna">Ninguna</option>
+              <option value="1">1</option>
+              <option value="2a3">2 a 3</option>
+              <option value="mas3">Más de 3</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label>Otros tipos de crédito formal ⚡ (selección múltiple)</label>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;" id="otros-creditos">
+              <label class="chip" style="cursor:pointer">
+                <input type="checkbox" value="personal" style="width:auto;padding:0" /> Personal
+              </label>
+              <label class="chip" style="cursor:pointer">
+                <input type="checkbox" value="departamental" style="width:auto;padding:0" /> Departamental
+              </label>
+              <label class="chip" style="cursor:pointer">
+                <input type="checkbox" value="nomina" style="width:auto;padding:0" /> Nómina
+              </label>
+              <label class="chip" style="cursor:pointer">
+                <input type="checkbox" value="hipotecario" style="width:auto;padding:0" /> Hipotecario
+              </label>
+              <label class="chip" style="cursor:pointer">
+                <input type="checkbox" value="auto" style="width:auto;padding:0" /> Auto/moto
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Score en tiempo real -->
+      <div class="card" style="margin-bottom:20px" id="score-card">
+        <div class="card-title">🧮 Score IPP calculado</div>
+        <div class="score-display">
+          <div>
+            <div class="score-num" id="score-num">—</div>
+            <div id="grado-badge" style="margin-top:8px"></div>
+          </div>
+          <div class="score-bar-wrap">
+            <div class="score-bar">
+              <div class="score-bar-fill" id="score-fill" style="width:0;background:#e8ff47"></div>
+            </div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)" id="score-desc">
+              Completa los campos marcados con ⚡ para calcular el score
+            </div>
+          </div>
+        </div>
+        <div id="block-alert" style="display:none">
+          <div class="alert alert-danger">
+            <span class="alert-icon">🚫</span>
+            <div><strong>BLOQUEO PRE-BURÓ:</strong> Grado D. No se procede a consulta CDC.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content:flex-end;gap:12px">
+        <button class="btn btn-secondary" onclick="showView('prospectos')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-guardar-prospecto" onclick="guardarProspecto()">
+          Guardar prospecto
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ VISTA: POST-BURÓ ═══ -->
+    <div id="view-postburo" class="view fade-in" style="display:none">
+      <div class="page-header">
+        <div class="page-title">Evaluación post-buró</div>
+        <div class="page-sub">Aplica reglas CDC a prospectos pre-aprobados</div>
+      </div>
+      <div class="filters">
+        <select class="filter-select" id="select-prospecto-pb" style="min-width:300px">
+          <option value="">Selecciona un prospecto pre-aprobado…</option>
+        </select>
+        <button class="btn btn-secondary" onclick="cargarProspectosPB()">🔄 Actualizar</button>
+      </div>
+
+      <div id="pb-form" style="display:none" class="fade-in">
+        <div class="card" style="margin-bottom:20px" id="pb-resumen"></div>
+
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-title">📄 Datos del reporte CDC</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Consultas al buró últimos 12 meses</label>
+              <input type="number" id="pb-consultas" value="0" min="0" />
+            </div>
+            <div class="field">
+              <label>Atrasos menores acumulados (todas las cuentas)</label>
+              <input type="number" id="pb-atrasos" value="0" min="0" />
+            </div>
+          </div>
+
+          <div style="margin-top:20px">
+            <div class="card-title">Cuentas del reporte CDC</div>
+            <div id="cuentas-list"></div>
+            <button class="btn btn-secondary btn-sm" onclick="agregarCuenta()" style="margin-top:12px">
+              + Agregar cuenta
+            </button>
+          </div>
+        </div>
+
+        <div id="pb-resultado" style="display:none" class="card fade-in">
+          <div class="card-title">📊 Resultado post-buró</div>
+          <div id="pb-resultado-content"></div>
+        </div>
+
+        <div class="row" style="justify-content:flex-end;gap:12px;margin-top:20px">
+          <button class="btn btn-secondary" onclick="evaluarPostBuroUI()">🧮 Evaluar CDC</button>
+          <button class="btn btn-primary" id="btn-guardar-pb" onclick="guardarPostBuro()" style="display:none">
+            Guardar resultado
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VISTA: ASIGNACIONES CE ═══ -->
+    <div id="view-asignaciones" class="view fade-in" style="display:none">
+      <div class="page-header">
+        <div class="page-title">Asignaciones CE</div>
+        <div class="page-sub">Asigna grupos a coordinadores de campo y define dirección</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Grupo</th>
+              <th>Integrantes</th>
+              <th>CE asignado</th>
+              <th>Dirección</th>
+              <th>Estatus</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-asignaciones">
+            <tr class="empty-row"><td colspan="6">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL: Detalle prospecto -->
+<div class="modal-overlay" id="modal-prospecto">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModal('modal-prospecto')">✕</button>
+    <div class="modal-title" id="modal-prosp-title">Detalle prospecto</div>
+    <div id="modal-prosp-body"></div>
+  </div>
+</div>
+
+<!-- MODAL: Nuevo grupo -->
+<div class="modal-overlay" id="modal-grupo">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModal('modal-grupo')">✕</button>
+    <div class="modal-title">Nuevo grupo</div>
+    <div class="form-grid">
+      <div class="field full">
+        <label>Nombre del grupo</label>
+        <input type="text" id="g-nombre" placeholder="Ej: Grupo Esperanza" />
+      </div>
+      <div class="field full">
+        <label>Integrantes (selecciona prospectos post-buró aprobados)</label>
+        <select id="g-integrantes" multiple style="height:160px">
+        </select>
+      </div>
+    </div>
+    <div class="row" style="justify-content:flex-end;gap:12px;margin-top:20px">
+      <button class="btn btn-secondary" onclick="cerrarModal('modal-grupo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="crearGrupo()">Crear grupo</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Asignar CE -->
+<div class="modal-overlay" id="modal-asignar">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModal('modal-asignar')">✕</button>
+    <div class="modal-title">Asignar grupo</div>
+    <div class="form-grid">
+      <div class="field full">
+        <label>CE (Coordinador de Evaluación)</label>
+        <select id="a-ce"></select>
+      </div>
+      <div class="field full">
+        <label>Dirección / Municipio asignado</label>
+        <input type="text" id="a-direccion" placeholder="Ej: Colonia Centro, Ecatepec" />
+      </div>
+    </div>
+    <input type="hidden" id="a-grupo-id" />
+    <div class="row" style="justify-content:flex-end;gap:12px;margin-top:20px">
+      <button class="btn btn-secondary" onclick="cerrarModal('modal-asignar')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarAsignacion()">Asignar</button>
+    </div>
+  </div>
+</div>
+
+<script src="ipp-core.js"></script>
+<script>
+// ─── State ──────────────────────────────────────────────────
+let currentUser = null;
+let prospectosPB = [];
+let cuentasCDC = [];
+let pbProspectoActual = null;
+let pbResultadoActual = null;
+
+// ─── Init ─────────────────────────────────────────────────
+(async () => {
+  const auth = await requireAuth(['CIMA']);
+  if (!auth) return;
+  currentUser = auth.profile;
+  document.getElementById('user-email').textContent = auth.session.user.email;
+  document.getElementById('app').style.display = 'grid';
+  llenarEstados();
+  cargarProspectos();
+  cargarGrupos();
+  cargarProspectosPB();
+  cargarCEs();
+})();
+
+function llenarEstados() {
+  ['f-estado-nac', 'f-estado'].forEach(id => {
+    const sel = document.getElementById(id);
+    ESTADOS_MX.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e; opt.textContent = e;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+// ─── Views ────────────────────────────────────────────────
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById(`view-${v}`);
+  if (el) { el.style.display = 'block'; el.classList.add('fade-in'); }
+  event?.target?.classList.add('active');
+}
+
+function abrirModal(id) { document.getElementById(id).classList.add('show'); }
+function cerrarModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// ─── Cargar prospectos ────────────────────────────────────
+async function cargarProspectos() {
+  const { data, error } = await sb.from('prospectos').select('*').order('created_at', { ascending: false });
+  if (error) { toast('Error cargando prospectos', 'error'); return; }
+  renderTablaProspectos(data || []);
+}
+
+function renderTablaProspectos(data) {
+  const tbody = document.getElementById('tabla-prospectos');
+  if (!data.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Sin prospectos registrados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(p => `
+    <tr>
+      <td><strong>${p.nombre_completo}</strong></td>
+      <td><span style="font-family:'DM Mono',monospace;font-size:12px">${p.curp || '—'}</span></td>
+      <td><span style="font-family:'DM Mono',monospace;font-weight:700">${p.score_ipp ?? '—'}</span></td>
+      <td>${badgeGrado(p.grado_ipp)}</td>
+      <td>${p.grado_postburo ? badgeGrado(p.grado_postburo) : '<span style="color:var(--muted);font-size:12px">Pendiente</span>'}</td>
+      <td>${estatusBadge(p.estatus)}</td>
+      <td>
+        <div class="row">
+          <button class="btn btn-secondary btn-sm" onclick="verProspecto('${p.id}')">Ver</button>
+          ${p.estatus === 'prospecto' && p.grado_ipp !== 'D'
+            ? `<button class="btn btn-secondary btn-sm" onclick="irPostBuro('${p.id}')">Post-buró</button>`
+            : ''}
+          ${p.estatus === 'postburo_rechazado'
+            ? `<button class="btn btn-danger btn-sm" onclick="sustituirProspecto('${p.id}')">Sustituir</button>`
+            : ''}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filtrarProspectos() {
+  const q = document.getElementById('search-prosp').value.toLowerCase();
+  const grado = document.getElementById('filter-grado').value;
+  const estatus = document.getElementById('filter-estatus').value;
+  const rows = document.querySelectorAll('#tabla-prospectos tr:not(.empty-row)');
+  rows.forEach(r => {
+    const text = r.textContent.toLowerCase();
+    const g = r.children[3]?.textContent.trim();
+    const e = r.children[5]?.textContent.trim();
+    const show = (!q || text.includes(q)) &&
+                 (!grado || g.includes(grado)) &&
+                 (!estatus || r.innerHTML.includes(`value="${estatus}"`));
+    r.style.display = show ? '' : 'none';
+  });
+}
+
+async function verProspecto(id) {
+  const { data: p } = await sb.from('prospectos').select('*').eq('id', id).single();
+  if (!p) return;
+  document.getElementById('modal-prosp-title').textContent = p.nombre_completo;
+  document.getElementById('modal-prosp-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">CURP</div>
+        <div style="font-family:'DM Mono',monospace">${p.curp || '—'}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Teléfono</div>
+        <div style="font-family:'DM Mono',monospace">${p.telefono || '—'}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Score IPP</div>
+        <div style="font-size:32px;font-weight:800;font-family:'DM Mono',monospace">${p.score_ipp}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Grado</div>
+        <div>${badgeGrado(p.grado_ipp)}</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:13px">
+      <div><span style="color:var(--muted)">Ingresos semanales:</span> <strong>$${(p.ingresos_semanales||0).toLocaleString()}</strong></div>
+      <div><span style="color:var(--muted)">Gastos semanales:</span> <strong>$${(p.gastos_semanales||0).toLocaleString()}</strong></div>
+      <div><span style="color:var(--muted)">Capacidad pago:</span> <strong>$${(p.capacidad_pago||0).toLocaleString()}</strong></div>
+      <div><span style="color:var(--muted)">Flujo neto:</span> <strong>$${((p.ingresos_semanales||0)-(p.gastos_semanales||0)).toLocaleString()}</strong></div>
+    </div>
+    <div class="divider"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:13px">
+      <div><span style="color:var(--muted)">Negocio:</span> ${p.antiguedad_negocio || '—'}</div>
+      <div><span style="color:var(--muted)">Ubicación:</span> ${p.ubicacion_negocio || '—'}</div>
+      <div><span style="color:var(--muted)">Exp. grupal:</span> ${p.exp_grupal || '—'}</div>
+      <div><span style="color:var(--muted)">¿Referida?:</span> ${p.es_referida ? 'Sí' : 'No'}</div>
+    </div>
+    ${p.grado_postburo ? `
+      <div class="divider"></div>
+      <div><span style="color:var(--muted);font-size:12px">POST-BURÓ:</span>
+        ${badgeGrado(p.grado_postburo)}
+        <span style="margin-left:8px">${estatusBadge(p.estatus)}</span>
+      </div>
+      ${p.reglas_postburo ? `<div style="margin-top:8px;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted)">
+        ${JSON.parse(p.reglas_postburo||'[]').map(r => `<div>• ${r}</div>`).join('')}
+      </div>` : ''}
+    ` : ''}
+    <div style="margin-top:20px">
+      <button class="btn btn-danger btn-sm" onclick="rechazarProspecto('${p.id}')">Rechazar prospecto</button>
+    </div>
+  `;
+  abrirModal('modal-prospecto');
+}
+
+// ─── Score en tiempo real ──────────────────────────────────
+function calcularScore() {
+  const d = leerFormulario();
+  if (!d.antiguedad_domicilio || !d.tipo_domicilio || !d.coincidencia_ine ||
+      !d.antiguedad_negocio || !d.ubicacion_negocio || !d.exp_grupal) return;
+
+  const { score, grado } = calcularIPP(d);
+  document.getElementById('score-num').textContent = score;
+  document.getElementById('grado-badge').innerHTML = badgeGrado(grado);
+
+  const fill = document.getElementById('score-fill');
+  const colores = { A: '#2ed573', B: '#7c6af7', C: '#ffa502', D: '#ff4757' };
+  fill.style.width = score + '%';
+  fill.style.background = colores[grado];
+
+  const descs = {
+    A: 'Perfil excelente — Continúa a consulta CDC',
+    B: 'Perfil bueno — Continúa a consulta CDC',
+    C: 'Perfil aceptable con reservas — Continúa a CDC',
+    D: '🚫 BLOQUEO: Perfil insuficiente — NO se consulta CDC'
+  };
+  document.getElementById('score-desc').textContent = descs[grado];
+  document.getElementById('block-alert').style.display = grado === 'D' ? 'block' : 'none';
+}
+
+// Recalculate when selects change
+document.addEventListener('change', e => {
+  if (e.target.closest('#view-nuevo-prospecto')) calcularScore();
+});
+
+function leerFormulario() {
+  const checks = document.querySelectorAll('#otros-creditos input:checked');
+  return {
+    antiguedad_domicilio: document.getElementById('f-ant-dom').value,
+    tipo_domicilio: document.getElementById('f-tipo-dom').value,
+    coincidencia_ine: document.getElementById('f-ine').value,
+    antiguedad_negocio: document.getElementById('f-ant-neg').value,
+    ubicacion_negocio: document.getElementById('f-ubic-neg').value,
+    ingresos_semanales: document.getElementById('f-ingresos').value,
+    gastos_semanales: document.getElementById('f-gastos').value,
+    capacidad_pago: document.getElementById('f-capacidad').value,
+    exp_grupal: document.getElementById('f-exp-grupal').value,
+    otros_creditos: checks.length,
+    es_referida: document.getElementById('f-referida').value === 'true'
+  };
+}
+
+async function guardarProspecto() {
+  const nombre = `${document.getElementById('f-nombres').value} ${document.getElementById('f-ap-pat').value} ${document.getElementById('f-ap-mat').value}`.trim();
+  const curp = document.getElementById('f-curp').value;
+  const tel = document.getElementById('f-telefono').value;
+  const tel2 = document.getElementById('f-telefono2').value;
+
+  if (!nombre || nombre === '  '.trim()) { toast('Nombre requerido', 'error'); return; }
+  if (curp.length !== 18) { toast('CURP debe tener 18 caracteres', 'error'); return; }
+  if (tel !== tel2) { toast('Los teléfonos no coinciden', 'error'); return; }
+
+  const d = leerFormulario();
+  const required = ['antiguedad_domicilio','tipo_domicilio','coincidencia_ine','antiguedad_negocio','ubicacion_negocio','exp_grupal'];
+  if (required.some(k => !d[k])) { toast('Completa todos los campos de scoring (⚡)', 'error'); return; }
+
+  const { score, grado } = calcularIPP(d);
+
+  const payload = {
+    nombre_completo: nombre,
+    curp,
+    telefono: tel,
+    fecha_nacimiento: document.getElementById('f-fnac').value,
+    estado_nacimiento: document.getElementById('f-estado-nac').value,
+    calle: document.getElementById('f-calle').value,
+    numero_exterior: document.getElementById('f-next').value,
+    numero_interior: document.getElementById('f-nint').value,
+    codigo_postal: document.getElementById('f-cp').value,
+    colonia: document.getElementById('f-colonia').value,
+    municipio: document.getElementById('f-municipio').value,
+    estado: document.getElementById('f-estado').value,
+    ...d,
+    score_ipp: score,
+    grado_ipp: grado,
+    estatus: grado === 'D' ? 'rechazado_ipp' : 'prospecto',
+    created_by: currentUser.id
+  };
+
+  const btn = document.getElementById('btn-guardar-prospecto');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+
+  const { error } = await sb.from('prospectos').insert(payload);
+  btn.disabled = false;
+  btn.textContent = 'Guardar prospecto';
+
+  if (error) { toast('Error al guardar: ' + error.message, 'error'); return; }
+  toast(`Prospecto guardado. Score: ${score} — Grado ${grado}`);
+  cargarProspectos();
+  showView('prospectos');
+}
+
+// ─── Post-buró ────────────────────────────────────────────
+async function cargarProspectosPB() {
+  const { data } = await sb.from('prospectos')
+    .select('id, nombre_completo, score_ipp, grado_ipp')
+    .in('estatus', ['prospecto'])
+    .neq('grado_ipp', 'D')
+    .order('created_at', { ascending: false });
+
+  prospectosPB = data || [];
+  const sel = document.getElementById('select-prospecto-pb');
+  sel.innerHTML = '<option value="">Selecciona un prospecto pre-aprobado…</option>';
+  prospectosPB.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.nombre_completo} — Grado ${p.grado_ipp} (${p.score_ipp} pts)`;
+    sel.appendChild(opt);
+  });
+  sel.onchange = () => cargarResumenPB(sel.value);
+}
+
+async function cargarResumenPB(id) {
+  if (!id) { document.getElementById('pb-form').style.display = 'none'; return; }
+  const { data: p } = await sb.from('prospectos').select('*').eq('id', id).single();
+  pbProspectoActual = p;
+  cuentasCDC = [];
+  renderCuentas();
+
+  document.getElementById('pb-resumen').innerHTML = `
+    <div class="card-title">Prospecto seleccionado</div>
+    <div style="display:flex;gap:20px;align-items:center">
+      <div>
+        <div style="font-size:18px;font-weight:700">${p.nombre_completo}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${p.curp}</div>
+      </div>
+      <div>Score: <strong style="font-size:24px;font-family:'DM Mono',monospace">${p.score_ipp}</strong></div>
+      <div>${badgeGrado(p.grado_ipp)}</div>
+    </div>
+  `;
+  document.getElementById('pb-form').style.display = 'block';
+  document.getElementById('pb-resultado').style.display = 'none';
+}
+
+function irPostBuro(id) {
+  showView('postburo');
+  document.getElementById('select-prospecto-pb').value = id;
+  cargarResumenPB(id);
+}
+
+function agregarCuenta() {
+  cuentasCDC.push({ otorgante: '', situacion: '', saldo: 0, saldo_vencido: 0, ultimos12m: false });
+  renderCuentas();
+}
+
+function renderCuentas() {
+  const situaciones = ['', 'AL DIA', 'UP', 'PC', 'LO', 'FD', 'SG', 'IM', 'MOP1', 'MOP2', 'MOP3'];
+  document.getElementById('cuentas-list').innerHTML = cuentasCDC.map((c, i) => `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:12px;align-items:end">
+        <div class="field">
+          <label>Otorgante</label>
+          <input type="text" value="${c.otorgante}" placeholder="Ej: BANCO AZTECA"
+            oninput="cuentasCDC[${i}].otorgante=this.value" />
+        </div>
+        <div class="field">
+          <label>Situación CDC</label>
+          <select onchange="cuentasCDC[${i}].situacion=this.value">
+            ${situaciones.map(s => `<option value="${s}" ${c.situacion===s?'selected':''}>${s||'Selecciona'}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Saldo ($)</label>
+          <input type="number" value="${c.saldo}" min="0"
+            oninput="cuentasCDC[${i}].saldo=parseFloat(this.value)||0" />
+        </div>
+        <div class="field">
+          <label>Vencido ($)</label>
+          <input type="number" value="${c.saldo_vencido}" min="0"
+            oninput="cuentasCDC[${i}].saldo_vencido=parseFloat(this.value)||0" />
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">¿Últimos 12m?</label>
+          <div style="margin-top:6px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+              <input type="checkbox" ${c.ultimos12m?'checked':''}
+                onchange="cuentasCDC[${i}].ultimos12m=this.checked" style="width:auto" />
+              Sí
+            </label>
+          </div>
+        </div>
+      </div>
+      <button onclick="cuentasCDC.splice(${i},1);renderCuentas()"
+        style="margin-top:8px;background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:12px">
+        ✕ Eliminar cuenta
+      </button>
+    </div>
+  `).join('') || '<div style="color:var(--muted);font-family:DM Mono,monospace;font-size:12px;padding:12px 0">Sin cuentas ingresadas</div>';
+}
+
+function evaluarPostBuroUI() {
+  if (!pbProspectoActual) return;
+  const consultas = parseInt(document.getElementById('pb-consultas').value) || 0;
+  const atrasos = parseInt(document.getElementById('pb-atrasos').value) || 0;
+  const resultado = evaluarPostBuro(pbProspectoActual.grado_ipp, cuentasCDC, consultas, atrasos);
+  pbResultadoActual = resultado;
+
+  const colorFinal = resultado.rechazado ? 'var(--danger)' : 'var(--success)';
+  document.getElementById('pb-resultado-content').innerHTML = `
+    <div style="display:flex;gap:24px;align-items:center;margin-bottom:20px">
+      <div>
+        <div style="font-size:12px;color:var(--muted)">Grado IPP pre-buró</div>
+        ${badgeGrado(pbProspectoActual.grado_ipp)}
+      </div>
+      <div style="font-size:20px;color:var(--muted)">→</div>
+      <div>
+        <div style="font-size:12px;color:var(--muted)">Grado final post-buró</div>
+        ${badgeGrado(resultado.gradoFinal)}
+      </div>
+      <div style="margin-left:auto">
+        <div style="font-size:24px;font-weight:800;color:${colorFinal}">
+          ${resultado.estatus}
+        </div>
+      </div>
+    </div>
+    ${resultado.reglasActivadas.length ? `
+      <div style="font-size:12px;margin-top:12px">
+        <div style="color:var(--muted);margin-bottom:8px;font-weight:600">REGLAS ACTIVADAS:</div>
+        ${resultado.reglasActivadas.map(r => `
+          <div class="alert ${resultado.rechazado ? 'alert-danger' : 'alert-warn'}" style="margin-bottom:8px;padding:10px 14px">
+            <span class="alert-icon">${resultado.rechazado ? '🚫' : '⚠️'}</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px">${r}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : '<div class="alert alert-success"><span class="alert-icon">✅</span> Sin reglas activadas. Historial crediticio limpio.</div>'}
+  `;
+  document.getElementById('pb-resultado').style.display = 'block';
+  document.getElementById('btn-guardar-pb').style.display = 'inline-flex';
+}
+
+async function guardarPostBuro() {
+  if (!pbResultadoActual || !pbProspectoActual) return;
+  const nuevoEstatus = pbResultadoActual.rechazado ? 'postburo_rechazado' : 'postburo_aprobado';
+
+  const { error } = await sb.from('prospectos').update({
+    grado_postburo: pbResultadoActual.gradoFinal,
+    estatus_postburo: pbResultadoActual.estatus,
+    reglas_postburo: JSON.stringify(pbResultadoActual.reglasActivadas),
+    cuentas_cdc: JSON.stringify(cuentasCDC),
+    estatus: nuevoEstatus
+  }).eq('id', pbProspectoActual.id);
+
+  if (error) { toast('Error guardando post-buró: ' + error.message, 'error'); return; }
+  toast(`Post-buró guardado: ${pbResultadoActual.estatus}`);
+  cargarProspectos();
+  cargarProspectosPB();
+  document.getElementById('pb-form').style.display = 'none';
+  document.getElementById('select-prospecto-pb').value = '';
+}
+
+// ─── Grupos ────────────────────────────────────────────────
+async function cargarGrupos() {
+  const { data } = await sb.from('grupos').select(`
+    *,
+    asignaciones_ce(ce_id, direccion, profiles(email))
+  `).order('created_at', { ascending: false });
+
+  const tbody = document.getElementById('tabla-grupos');
+  if (!data?.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Sin grupos creados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(g => {
+    const asig = g.asignaciones_ce?.[0];
+    return `
+      <tr>
+        <td><strong>${g.nombre}</strong></td>
+        <td><span style="font-family:'DM Mono',monospace">${g.num_integrantes || 0}</span></td>
+        <td>${asig?.profiles?.email || '<span style="color:var(--muted)">Sin asignar</span>'}</td>
+        <td>${estatusBadge(g.estatus || 'formado')}</td>
+        <td>
+          <div class="row">
+            <button class="btn btn-secondary btn-sm" onclick="abrirModalAsignar('${g.id}')">Asignar CE</button>
+            <button class="btn btn-secondary btn-sm" onclick="cambiarEstatusGrupo('${g.id}', 'por_visitar')">→ Por visitar</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function abrirModalNuevoGrupo() {
+  const { data } = await sb.from('prospectos')
+    .select('id, nombre_completo, grado_postburo')
+    .eq('estatus', 'postburo_aprobado');
+
+  const sel = document.getElementById('g-integrantes');
+  sel.innerHTML = '';
+  (data || []).forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.nombre_completo} (${p.grado_postburo})`;
+    sel.appendChild(opt);
+  });
+  abrirModal('modal-grupo');
+}
+
+async function crearGrupo() {
+  const nombre = document.getElementById('g-nombre').value.trim();
+  const integrantes = Array.from(document.getElementById('g-integrantes').selectedOptions).map(o => o.value);
+  if (!nombre) { toast('Nombre del grupo requerido', 'error'); return; }
+  if (integrantes.length < 3) { toast('Mínimo 3 integrantes', 'error'); return; }
+
+  const { data: grupo, error } = await sb.from('grupos').insert({
+    nombre, num_integrantes: integrantes.length, estatus: 'formado', created_by: currentUser.id
+  }).select().single();
+
+  if (error) { toast('Error creando grupo: ' + error.message, 'error'); return; }
+
+  // Asignar integrantes
+  await sb.from('integrantes').insert(integrantes.map(pid => ({ grupo_id: grupo.id, prospecto_id: pid })));
+
+  // Actualizar estatus de prospectos
+  await sb.from('prospectos').update({ estatus: 'en_grupo' }).in('id', integrantes);
+
+  toast(`Grupo "${nombre}" creado con ${integrantes.length} integrantes`);
+  cerrarModal('modal-grupo');
+  cargarGrupos();
+}
+
+async function cargarCEs() {
+  const { data } = await sb.from('profiles').select('id, email').eq('role', 'CE');
+  const sel = document.getElementById('a-ce');
+  sel.innerHTML = '<option value="">Selecciona CE…</option>';
+  (data || []).forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.id; opt.textContent = u.email;
+    sel.appendChild(opt);
+  });
+}
+
+function abrirModalAsignar(grupoId) {
+  document.getElementById('a-grupo-id').value = grupoId;
+  abrirModal('modal-asignar');
+}
+
+async function guardarAsignacion() {
+  const grupoId = document.getElementById('a-grupo-id').value;
+  const ceId = document.getElementById('a-ce').value;
+  const direccion = document.getElementById('a-direccion').value.trim();
+  if (!ceId || !direccion) { toast('Completa CE y dirección', 'error'); return; }
+
+  const { error } = await sb.from('asignaciones_ce').upsert({
+    grupo_id: grupoId, ce_id: ceId, direccion
+  }, { onConflict: 'grupo_id' });
+
+  await sb.from('grupos').update({ estatus: 'asignado' }).eq('id', grupoId);
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  toast('Asignación guardada');
+  cerrarModal('modal-asignar');
+  cargarGrupos();
+}
+
+async function cambiarEstatusGrupo(id, estatus) {
+  await sb.from('grupos').update({ estatus }).eq('id', id);
+  toast(`Grupo → ${estatus}`);
+  cargarGrupos();
+}
+
+async function rechazarProspecto(id) {
+  if (!(await confirm_dialog('¿Confirmas rechazar este prospecto?'))) return;
+  await sb.from('prospectos').update({ estatus: 'postburo_rechazado' }).eq('id', id);
+  toast('Prospecto rechazado');
+  cerrarModal('modal-prospecto');
+  cargarProspectos();
+}
+
+async function sustituirProspecto(id) {
+  if (!(await confirm_dialog('¿Marcar este prospecto como sustituido?'))) return;
+  await sb.from('prospectos').update({ estatus: 'sustituido' }).eq('id', id);
+  toast('Prospecto marcado como sustituido');
+  cargarProspectos();
+}
+
+async function cargarTablaAsignaciones() {
+  const { data } = await sb.from('grupos').select(`
+    id, nombre, num_integrantes, estatus,
+    asignaciones_ce(ce_id, direccion, profiles(email))
+  `);
+  const tbody = document.getElementById('tabla-asignaciones');
+  if (!data?.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Sin grupos</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(g => {
+    const asig = g.asignaciones_ce?.[0];
+    return `
+      <tr>
+        <td><strong>${g.nombre}</strong></td>
+        <td>${g.num_integrantes || 0}</td>
+        <td>${asig?.profiles?.email || '—'}</td>
+        <td>${asig?.direccion || '—'}</td>
+        <td>${estatusBadge(g.estatus)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="abrirModalAsignar('${g.id}')">Reasignar</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+</script>
+</body>
+</html>

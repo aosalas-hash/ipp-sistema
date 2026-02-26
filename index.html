@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPP — Acceso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { --bg:#0a0a0f;--surface:#13131a;--border:#1e1e2e;--accent:#e8ff47;--accent2:#7c6af7;--text:#f0f0f5;--muted:#6b6b80;--danger:#ff4757; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .bg-grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(232,255,71,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,71,.03) 1px,transparent 1px);background-size:48px 48px}
+    .blob{position:fixed;width:600px;height:600px;border-radius:50%;filter:blur(140px);opacity:.1;animation:drift 12s ease-in-out infinite alternate}
+    .blob.one{background:var(--accent2);top:-200px;left:-200px}
+    .blob.two{background:var(--accent);bottom:-200px;right:-200px;animation-delay:-6s}
+    @keyframes drift{from{transform:translate(0,0)}to{transform:translate(60px,40px)}}
+    .card{position:relative;z-index:1;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:48px 40px;width:420px;box-shadow:0 40px 80px rgba(0,0,0,.5)}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:40px}
+    .mark{width:40px;height:40px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--bg)}
+    .brand-name{font-size:20px;font-weight:700;letter-spacing:-.5px}
+    .brand-sub{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace}
+    h2{font-size:28px;font-weight:800;margin-bottom:8px}
+    .sub{color:var(--muted);font-size:14px;margin-bottom:32px}
+    label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:8px}
+    .field{margin-bottom:20px}
+    input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;padding:12px 16px;transition:border-color .2s;outline:none}
+    input:focus{border-color:var(--accent)}
+    .btn{width:100%;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:8px;transition:opacity .2s,transform .1s}
+    .btn:hover{opacity:.9;transform:translateY(-1px)}
+    .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .err{background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.3);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--danger);margin-top:16px;display:none}
+    .err.show{display:block}
+    .fn{text-align:center;margin-top:24px;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace}
+    .spin{display:none;width:16px;height:16px;border:2px solid var(--bg);border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="blob one"></div>
+  <div class="blob two"></div>
+  <div class="card" style="animation:fadeIn .4s ease">
+    <div class="brand">
+      <div class="mark">I</div>
+      <div>
+        <div class="brand-name">IPP Sistema</div>
+        <div class="brand-sub">podemos.mx · piloto</div>
+      </div>
+    </div>
+    <h2>Acceso seguro</h2>
+    <p class="sub">Ingresa con tu cuenta institucional</p>
+    <div class="field">
+      <label>Correo electrónico</label>
+      <input type="email" id="email" placeholder="usuario@podemos.mx" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="pwd" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn" id="btn" onclick="login()">
+      <span id="lbl">Iniciar sesión</span>
+      <div class="spin" id="spin"></div>
+    </button>
+    <div class="err" id="err"></div>
+    <div class="fn">v2.0 · Sistema piloto · Uso interno</div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://gcwadtxoqkbwtqxjdtlf.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdjd2FkdHhvcWtid3RxeGpkdGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzYwMzUsImV4cCI6MjA4NzcxMjAzNX0.C6R7kg2OQXN5Rd6-zVbjGbWhMO4kTPHB0uN5i7Q2ZyI';
+    const { createClient } = supabase;
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const ROUTES = { CE: 'ce.html', CIMA: 'cima.html', Direccion: 'dashboard.html' };
+
+    (async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) await redirect(session.user.id);
+    })();
+
+    async function redirect(uid) {
+      const { data: p } = await sb.from('profiles').select('role').eq('id', uid).single();
+      if (p && ROUTES[p.role]) window.location.href = ROUTES[p.role];
+    }
+
+    async function login() {
+      const email = document.getElementById('email').value.trim();
+      const pwd = document.getElementById('pwd').value;
+      const btn = document.getElementById('btn');
+      const lbl = document.getElementById('lbl');
+      const spin = document.getElementById('spin');
+      const err = document.getElementById('err');
+      if (!email || !pwd) { showErr('Completa todos los campos.'); return; }
+      btn.disabled = true; lbl.style.display = 'none'; spin.style.display = 'block'; err.classList.remove('show');
+      try {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password: pwd });
+        if (error) throw error;
+        await redirect(data.user.id);
+      } catch(e) {
+        showErr(e.message.includes('Invalid') ? 'Credenciales incorrectas.' : e.message);
+        btn.disabled = false; lbl.style.display = 'block'; spin.style.display = 'none';
+      }
+    }
+
+    function showErr(msg) {
+      const e = document.getElementById('err');
+      e.textContent = msg; e.classList.add('show');
+    }
+
+    document.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') login(); }));
+  </script>
+</body>
+</html>

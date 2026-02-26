@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPP — Dashboard Dirección</title>
+  <link rel="stylesheet" href="ipp-styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app" id="app" style="display:none">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">I</div>
+      <span class="brand-name">IPP Dashboard</span>
+      <span class="brand-role">Dirección</span>
+    </div>
+    <div class="topbar-right">
+      <span class="user-info" id="user-email"></span>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <nav class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Dashboard</div>
+      <a class="nav-item active" href="#">
+        <span class="nav-icon">📊</span> Resumen ejecutivo
+      </a>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="page-header flex-between">
+      <div>
+        <div class="page-title">Resumen ejecutivo</div>
+        <div class="page-sub" id="fecha-reporte"></div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="cargarDatos()">🔄 Actualizar</button>
+    </div>
+
+    <!-- KPIs principales -->
+    <div class="stats-grid" id="kpis">
+      <div class="stat-card accent">
+        <div class="stat-value" id="kpi-total">—</div>
+        <div class="stat-label">Total prospectos</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-value" id="kpi-preburo">—</div>
+        <div class="stat-label">Tasa aprobación pre-buró</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-value" id="kpi-postburo">—</div>
+        <div class="stat-label">Tasa aprobación post-buró</div>
+      </div>
+      <div class="stat-card warn">
+        <div class="stat-value" id="kpi-aceptacion-ce">—</div>
+        <div class="stat-label">Aceptación CE</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-value" id="kpi-grupos">—</div>
+        <div class="stat-label">Grupos formados</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-value" id="kpi-rechazados">—</div>
+        <div class="stat-label">Total rechazados</div>
+      </div>
+    </div>
+
+    <!-- Funnel -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px">
+      <div class="card">
+        <div class="card-title">Funnel de conversión</div>
+        <div id="funnel" style="padding:8px 0"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Distribución por grado IPP</div>
+        <canvas id="chart-grados" height="200"></canvas>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px">
+      <div class="card">
+        <div class="card-title">Rendimiento por CE</div>
+        <canvas id="chart-ce" height="220"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">Motivos de rechazo CE</div>
+        <div id="motivos-rechazo-list"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Estatus de grupos activos</div>
+      <div class="table-wrap" style="margin-top:12px">
+        <table>
+          <thead>
+            <tr>
+              <th>Grupo</th>
+              <th>Integrantes</th>
+              <th>Score grupal</th>
+              <th>Grado</th>
+              <th>CE</th>
+              <th>Estatus</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-grupos-dir"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="ipp-core.js"></script>
+<script>
+let chartGrados = null;
+let chartCE = null;
+
+(async () => {
+  const auth = await requireAuth(['Direccion']);
+  if (!auth) return;
+  document.getElementById('user-email').textContent = auth.session.user.email;
+  document.getElementById('app').style.display = 'grid';
+  document.getElementById('fecha-reporte').textContent =
+    `Actualizado: ${new Date().toLocaleString('es-MX')}`;
+  cargarDatos();
+})();
+
+async function cargarDatos() {
+  document.getElementById('fecha-reporte').textContent =
+    `Actualizado: ${new Date().toLocaleString('es-MX')}`;
+
+  const [{ data: prospectos }, { data: grupos }, { data: integrantes }, { data: encuestas }] = await Promise.all([
+    sb.from('prospectos').select('*'),
+    sb.from('grupos').select('*, asignaciones_ce(ce_id, profiles(email))'),
+    sb.from('integrantes').select('*'),
+    sb.from('encuestas_piloto').select('*')
+  ]);
+
+  const p = prospectos || [];
+  const g = grupos || [];
+
+  // KPIs
+  const total = p.length;
+  const noD = p.filter(x => x.grado_ipp !== 'D');
+  const tasaPreBuro = total > 0 ? Math.round((noD.length / total) * 100) : 0;
+
+  const consultados = p.filter(x => x.grado_postburo);
+  const aprobadosPostBuro = p.filter(x => x.estatus === 'postburo_aprobado');
+  const tasaPostBuro = consultados.length > 0
+    ? Math.round((aprobadosPostBuro.length / consultados.length) * 100) : 0;
+
+  const evaluadosCE = integrantes?.filter(i => i.decision_ce) || [];
+  const aprobadosCE = evaluadosCE.filter(i => i.decision_ce === 'aprobado');
+  const tasaCE = evaluadosCE.length > 0
+    ? Math.round((aprobadosCE.length / evaluadosCE.length) * 100) : 0;
+
+  document.getElementById('kpi-total').textContent = total;
+  document.getElementById('kpi-preburo').textContent = `${tasaPreBuro}%`;
+  document.getElementById('kpi-postburo').textContent = `${tasaPostBuro}%`;
+  document.getElementById('kpi-aceptacion-ce').textContent = `${tasaCE}%`;
+  document.getElementById('kpi-grupos').textContent = g.length;
+  document.getElementById('kpi-rechazados').textContent =
+    p.filter(x => ['rechazado_ipp','postburo_rechazado','rechazado_ce'].includes(x.estatus)).length;
+
+  // Funnel
+  renderFunnel(total, noD.length, aprobadosPostBuro.length, aprobadosCE.length, g.length);
+
+  // Gráfica de grados
+  renderChartGrados(p);
+
+  // Gráfica CE
+  renderChartCE(g, evaluadosCE);
+
+  // Motivos rechazo
+  renderMotivos(integrantes || [], g);
+
+  // Tabla grupos
+  renderTablaGrupos(g);
+}
+
+function renderFunnel(total, preBuro, postBuro, aceptCE, gruposF) {
+  const steps = [
+    { label: 'Prospectos captados', n: total, color: '#7c6af7' },
+    { label: 'Aprobados pre-buró (A/B/C)', n: preBuro, color: '#1e90ff' },
+    { label: 'Aprobados post-buró', n: postBuro, color: '#ffa502' },
+    { label: 'Aceptados por CE', n: aceptCE, color: '#2ed573' },
+    { label: 'Grupos formados', n: gruposF, color: '#e8ff47' },
+  ];
+  const max = total || 1;
+  document.getElementById('funnel').innerHTML = steps.map(s => `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:12px;color:var(--muted)">${s.label}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${s.n}</span>
+      </div>
+      <div style="background:var(--border2);border-radius:4px;height:8px;overflow:hidden">
+        <div style="height:100%;width:${(s.n/max)*100}%;background:${s.color};border-radius:4px;transition:width 0.6s ease"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderChartGrados(prospectos) {
+  const counts = { A: 0, B: 0, C: 0, D: 0 };
+  prospectos.forEach(p => { if (counts[p.grado_ipp] !== undefined) counts[p.grado_ipp]++; });
+
+  const ctx = document.getElementById('chart-grados').getContext('2d');
+  if (chartGrados) chartGrados.destroy();
+  chartGrados = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Grado A', 'Grado B', 'Grado C', 'Grado D'],
+      datasets: [{
+        data: [counts.A, counts.B, counts.C, counts.D],
+        backgroundColor: ['#2ed573', '#7c6af7', '#ffa502', '#ff4757'],
+        borderColor: '#13131a',
+        borderWidth: 3
+      }]
+    },
+    options: {
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#9090a8', font: { family: 'DM Mono', size: 11 }, padding: 12 }
+        }
+      },
+      cutout: '60%'
+    }
+  });
+}
+
+function renderChartCE(grupos, integrantes) {
+  // Agrupar por CE email
+  const cemap = {};
+  grupos.forEach(g => {
+    const email = g.asignaciones_ce?.[0]?.profiles?.email;
+    if (!email) return;
+    const short = email.split('@')[0];
+    if (!cemap[short]) cemap[short] = { aprobados: 0, rechazados: 0 };
+    if (g.decision_ce === 'aprobado') cemap[short].aprobados++;
+    else if (g.decision_ce === 'rechazado') cemap[short].rechazados++;
+  });
+
+  const labels = Object.keys(cemap);
+  if (!labels.length) return;
+
+  const ctx = document.getElementById('chart-ce').getContext('2d');
+  if (chartCE) chartCE.destroy();
+  chartCE = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Aprobados',
+          data: labels.map(k => cemap[k].aprobados),
+          backgroundColor: 'rgba(46,213,115,0.6)',
+          borderColor: '#2ed573',
+          borderWidth: 1,
+          borderRadius: 4
+        },
+        {
+          label: 'Rechazados',
+          data: labels.map(k => cemap[k].rechazados),
+          backgroundColor: 'rgba(255,71,87,0.6)',
+          borderColor: '#ff4757',
+          borderWidth: 1,
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      scales: {
+        x: { ticks: { color: '#6b6b80', font: { family: 'DM Mono', size: 11 } }, grid: { color: '#1e1e2e' } },
+        y: { ticks: { color: '#6b6b80', stepSize: 1, font: { family: 'DM Mono', size: 11 } }, grid: { color: '#1e1e2e' } }
+      },
+      plugins: {
+        legend: { labels: { color: '#9090a8', font: { family: 'DM Mono', size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderMotivos(integrantes, grupos) {
+  const motivosI = integrantes
+    .filter(i => i.decision_ce === 'rechazado' && i.motivo_rechazo)
+    .map(i => i.motivo_rechazo);
+
+  const motivosG = grupos
+    .filter(g => g.decision_ce === 'rechazado' && g.motivo_rechazo_ce)
+    .map(g => g.motivo_rechazo_ce);
+
+  const todos = [...motivosI, ...motivosG];
+
+  if (!todos.length) {
+    document.getElementById('motivos-rechazo-list').innerHTML =
+      '<div style="color:var(--muted);font-family:DM Mono,monospace;font-size:12px;padding:12px 0">Sin rechazos registrados</div>';
+    return;
+  }
+
+  document.getElementById('motivos-rechazo-list').innerHTML = todos.slice(0, 8).map(m => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span style="color:var(--danger);margin-right:8px">•</span>
+      ${m.substring(0, 80)}${m.length > 80 ? '…' : ''}
+    </div>
+  `).join('');
+}
+
+function renderTablaGrupos(grupos) {
+  const tbody = document.getElementById('tabla-grupos-dir');
+  if (!grupos.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Sin grupos</td></tr>';
+    return;
+  }
+  tbody.innerHTML = grupos.map(g => `
+    <tr>
+      <td><strong>${g.nombre}</strong></td>
+      <td>${g.num_integrantes || 0}</td>
+      <td>${g.score_grupal != null
+        ? `<span style="font-family:'DM Mono',monospace;font-weight:700">${g.score_grupal}</span>`
+        : '—'}</td>
+      <td>${g.grado_grupal ? badgeGrado(g.grado_grupal) : '—'}</td>
+      <td>${g.asignaciones_ce?.[0]?.profiles?.email?.split('@')[0] || '—'}</td>
+      <td>${estatusBadge(g.estatus || 'formado')}</td>
+    </tr>
+  `).join('');
+}
+</script>
+</body>
+</html>
