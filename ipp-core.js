@@ -10,19 +10,30 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ─── AUTH GUARD ─────────────────────────────────────────────────
 async function requireAuth(allowedRoles = []) {
+  // Bloquear botón atrás: reemplazar entrada en historial para que no vuelva a esta vista
+  history.replaceState(null, '', window.location.href);
+  window.addEventListener('popstate', () => {
+    history.replaceState(null, '', window.location.href);
+  });
+
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { window.location.href = 'index.html'; return null; }
+  if (!session) { window.location.replace('index.html'); return null; }
+
   const { data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
-  if (!profile) { window.location.href = 'index.html'; return null; }
+  if (!profile) { window.location.replace('index.html'); return null; }
   if (allowedRoles.length && !allowedRoles.includes(profile.role)) {
-    window.location.href = 'index.html'; return null;
+    window.location.replace('index.html'); return null;
   }
   return { session, profile };
 }
 
 async function logout() {
   await sb.auth.signOut();
-  window.location.href = 'index.html';
+  // Limpiar todo el storage local
+  try { localStorage.clear(); } catch(e) {}
+  try { sessionStorage.clear(); } catch(e) {}
+  // Reemplazar historial para que "atrás" no regrese a la vista protegida
+  window.location.replace('index.html');
 }
 
 // ─── LOG DE ESTATUS ──────────────────────────────────────────────
@@ -204,41 +215,36 @@ function calcularScoreGrupal(integrantesAprobados, integrantesRechazados) {
 // ═══════════════════════════════════════════════════════════════
 function badgeGrado(grado) {
   if (!grado) return '<span style="color:var(--muted)">—</span>';
-  const map = {
-    'A': { bg: '#2ed57320', border: '#2ed573', color: '#2ed573' },
-    'B': { bg: '#7c6af720', border: '#7c6af7', color: '#7c6af7' },
-    'C': { bg: '#ffa50220', border: '#ffa502', color: '#ffa502' },
-    'D': { bg: '#ff475720', border: '#ff4757', color: '#ff4757' }
-  };
-  const s = map[grado] || map['D'];
-  return `<span style="background:${s.bg};border:1px solid ${s.border};color:${s.color};font-family:'DM Mono',monospace;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;letter-spacing:1px">${grado}</span>`;
+  const cls = ['A','B','C','D'].includes(grado) ? grado : 'D';
+  return `<span class="badge-grado badge-${cls}">${grado}</span>`;
 }
 
 function estatusBadge(estatus) {
-  const map = {
-    'prospecto':           { color: '#6b6b80', label: 'Prospecto' },
-    'rechazado_ipp':       { color: '#ff4757', label: 'Rechazado IPP' },
-    'pre_aprobado':        { color: '#7c6af7', label: 'Pre-aprobado' },
-    'postburo_aprobado':   { color: '#2ed573', label: 'Post-buró OK' },
-    'postburo_rechazado':  { color: '#ff4757', label: 'Rechazado buró' },
-    'en_grupo':            { color: '#1e90ff', label: 'En grupo' },
-    'aprobado_ce':         { color: '#2ed573', label: 'Aprobado CE' },
-    'rechazado_ce':        { color: '#ff4757', label: 'Rechazado CE' },
-    'sustituido':          { color: '#6b6b80', label: 'Sustituido' },
-    'formado':             { color: '#7c6af7', label: 'Formado' },
-    'asignado':            { color: '#1e90ff', label: 'Asignado' },
-    'por_visitar':         { color: '#ffa502', label: 'Por visitar' },
-    'en_visita':           { color: '#e8ff47', label: 'En visita' },
-    'activo':              { color: '#2ed573', label: 'Activo' },
+  const labels = {
+    'prospecto':           'Prospecto',
+    'rechazado_ipp':       'Rechazado IPP',
+    'pre_aprobado':        'Pre-aprobado',
+    'postburo_aprobado':   'Post-buró OK',
+    'postburo_rechazado':  'Rechazado buró',
+    'en_grupo':            'En grupo',
+    'aprobado_ce':         'Aprobado CE',
+    'rechazado_ce':        'Rechazado CE',
+    'sustituido':          'Sustituido',
+    'formado':             'Formado',
+    'asignado':            'Asignado',
+    'por_visitar':         'Por visitar',
+    'en_visita':           'En visita',
+    'activo':              'Activo',
   };
-  const s = map[estatus] || { color: '#6b6b80', label: estatus || '—' };
-  return `<span style="background:${s.color}20;border:1px solid ${s.color}50;color:${s.color};font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">${s.label}</span>`;
+  const key = estatus || 'prospecto';
+  const label = labels[key] || estatus || '—';
+  return `<span class="badge-estatus estatus-${key}">${label}</span>`;
 }
 
 function toast(msg, type = 'success') {
   const el = document.createElement('div');
-  const colors = { success: '#2ed573', error: '#ff4757', warn: '#ffa502', info: '#7c6af7' };
-  el.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;background:#13131a;border:1px solid ${colors[type]||colors.success};color:${colors[type]||colors.success};padding:14px 20px;border-radius:10px;font-family:'DM Mono',monospace;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,0.4);max-width:340px;animation:fadeIn 0.3s ease`;
+  const colors = { success: 'var(--green)', error: 'var(--red)', warn: 'var(--yellow)', info: 'var(--blue)' };
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--surface);border:1px solid ${colors[type]||colors.success};color:${colors[type]||colors.success};padding:14px 20px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,0.12);max-width:340px;animation:fadeIn 0.3s ease`;
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 4000);
@@ -247,8 +253,8 @@ function toast(msg, type = 'success') {
 function confirm_dialog(msg) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9998;display:flex;align-items:center;justify-content:center;';
-    overlay.innerHTML = `<div style="background:#13131a;border:1px solid #1e1e2e;border-radius:12px;padding:32px;max-width:360px;width:90%"><p style="font-family:Syne,sans-serif;font-size:15px;margin-bottom:24px;line-height:1.5">${msg}</p><div style="display:flex;gap:12px"><button id="cn" style="flex:1;background:#0a0a0f;border:1px solid #1e1e2e;color:#f0f0f5;padding:10px;border-radius:8px;cursor:pointer;font-family:Syne,sans-serif;font-size:14px">Cancelar</button><button id="cy" style="flex:1;background:#e8ff47;border:none;color:#0a0a0f;padding:10px;border-radius:8px;cursor:pointer;font-family:Syne,sans-serif;font-weight:700;font-size:14px">Confirmar</button></div></div>`;
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9998;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:360px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.15)"><p style="font-family:'IBM Plex Sans',sans-serif;font-size:15px;margin-bottom:24px;line-height:1.5;color:var(--text)">${msg}</p><div style="display:flex;gap:12px"><button id="cn" style="flex:1;background:var(--surface2);border:1px solid var(--border2);color:var(--text-2);padding:10px;border-radius:8px;cursor:pointer;font-family:'Sora',sans-serif;font-size:14px">Cancelar</button><button id="cy" style="flex:1;background:var(--brand);border:none;color:#fff;padding:10px;border-radius:8px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;font-size:14px">Confirmar</button></div></div>`;
     document.body.appendChild(overlay);
     overlay.querySelector('#cy').onclick = () => { overlay.remove(); resolve(true); };
     overlay.querySelector('#cn').onclick = () => { overlay.remove(); resolve(false); };

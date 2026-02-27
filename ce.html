@@ -6,6 +6,257 @@
   <title>IPP — Coordinador CE</title>
   <link rel="stylesheet" href="ipp-styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* ═══ EVALUACIÓN GRUPAL CE — flujo multi-pantalla ═══ */
+    .eg-top-bar {
+      position: sticky; top: 56px; z-index: 30;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 10px 16px 8px;
+    }
+    .eg-step-row {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px;
+    }
+    .eg-step-label { font-size: 12px; font-weight: 600; color: var(--muted2); }
+    .eg-step-label strong { color: var(--text); }
+    .eg-step-time  { font-size: 11px; color: var(--muted); }
+    .eg-progress-track { width: 100%; height: 3px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .eg-progress-fill  { height: 100%; background: var(--brand); border-radius: 99px; transition: width 0.4s cubic-bezier(.4,0,.2,1); }
+
+    .eg-members-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 12px; margin-bottom: 14px;
+    }
+    .eg-members-names { font-size: 12px; color: var(--muted2); flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    .eg-members-names strong { color: var(--text); }
+
+    .eg-q-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 16px 14px; margin-bottom: 10px; transition: border-color 0.2s;
+    }
+    .eg-q-card.error { border-color: var(--red); }
+    .eg-q-text { font-size: 15px; font-weight: 500; line-height: 1.5; margin-bottom: 12px; }
+    .eg-q-n { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--muted2); margin-right: 4px; }
+
+    .eg-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .eg-chip {
+      min-height: 40px; display: inline-flex; align-items: center;
+      padding: 0 16px; border-radius: 99px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 1.5px solid var(--border);
+      background: var(--bg, var(--surface2)); color: var(--muted2);
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+      user-select: none;
+    }
+    .eg-chip.c-si.sel  { background: var(--green-bg);    border-color: var(--green);    color: var(--green); }
+    .eg-chip.c-no.sel  { background: var(--red-bg,#fff2f2); border-color: var(--red);  color: var(--red); }
+    .eg-chip.c-par.sel { background: var(--yellow-bg,#fffbeb); border-color: var(--yellow-chip); color: #7A5800; }
+    .eg-chip.c-na.sel  { background: var(--surface2); border-color: var(--muted2); color: var(--muted2); }
+
+    .eg-drill {
+      margin-top: 12px; padding: 14px; background: var(--surface2);
+      border-radius: 8px; border: 1px solid var(--border);
+      display: none; flex-direction: column; gap: 11px;
+    }
+    .eg-drill.open { display: flex; animation: eg-drillIn 0.16s ease; }
+    @keyframes eg-drillIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+    .eg-drill-label { font-size: 11px; font-weight: 700; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; }
+    .eg-drill-label .req { color: var(--red); }
+    .eg-m-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .eg-m-chip {
+      min-height: 36px; display: inline-flex; align-items: center;
+      padding: 0 14px; border-radius: 99px; font-size: 13px; font-weight: 500;
+      cursor: pointer; border: 1.5px solid var(--border);
+      background: var(--surface); color: var(--text);
+      transition: background 0.12s, border-color 0.12s; user-select: none;
+    }
+    .eg-m-chip.sel { background: var(--red-bg,#fff2f2); border-color: var(--red); color: var(--red); font-weight: 700; }
+    .eg-drill-ta {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; font-family: 'IBM Plex Sans', sans-serif; font-size: 15px;
+      line-height: 1.5; resize: vertical; min-height: 60px;
+      background: var(--surface); color: var(--text); outline: none;
+      transition: border-color 0.15s;
+    }
+    .eg-drill-ta:focus { border-color: var(--brand); }
+    .eg-err-msg { font-size: 12px; color: var(--red); font-weight: 500; margin-top: 6px; }
+    .eg-badge-cs {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--red-bg,#fff2f2); border: 1px solid var(--red); color: var(--red);
+      border-radius: 99px; padding: 5px 12px; font-size: 11px; font-weight: 700;
+      margin-top: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+
+    .eg-nav {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; padding: 16px 0 0;
+    }
+    .eg-btn-ghost {
+      min-height: 44px; padding: 0 20px; border-radius: 99px;
+      background: transparent; color: var(--muted2); border: 1.5px solid var(--border);
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .eg-btn-primary {
+      min-height: 44px; padding: 0 24px; border-radius: 99px; flex: 1;
+      background: var(--brand); color: #fff; border: none;
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+
+    /* ── resultado ── */
+    .eg-res-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px 16px; margin-bottom: 12px;
+    }
+    .eg-res-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted2); margin-bottom: 8px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .eg-res-big { font-size: 20px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; }
+    .eg-res-desc { font-size: 13px; line-height: 1.5; }
+    .eg-nivel-estandar   .eg-res-big, .eg-nivel-estandar   .eg-res-desc { color: var(--green); }
+    .eg-nivel-atencion   .eg-res-big, .eg-nivel-atencion   .eg-res-desc { color: #7A5800; }
+    .eg-nivel-prioritaria .eg-res-big, .eg-nivel-prioritaria .eg-res-desc { color: var(--red); }
+    .eg-badge-critico {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--red-bg,#fff2f2); border: 1px solid var(--red); color: var(--red);
+      border-radius: 99px; padding: 5px 12px; font-size: 11px; font-weight: 700;
+      margin-top: 6px; letter-spacing: 0.03em;
+    }
+    .eg-summary-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 12px; }
+    .eg-summary-cell {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    }
+    .eg-summary-cell.s-ok   { border-color: var(--green); background: var(--green-bg); }
+    .eg-summary-cell.s-warn { border-color: var(--yellow-chip,#E0A800); background: var(--yellow-bg,#fffbeb); }
+    .eg-summary-cell.s-flag { border-color: var(--red); background: var(--red-bg,#fff2f2); }
+    .eg-summary-n   { font-family: 'IBM Plex Mono', monospace; font-size: 24px; font-weight: 700; }
+    .eg-summary-sub { font-size: 11px; font-weight: 600; color: var(--muted2); }
+
+    .eg-member-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      margin-bottom: 8px; overflow: hidden;
+    }
+    .eg-member-card.st-ok   { border-color: var(--green); }
+    .eg-member-card.st-warn { border-color: var(--yellow-chip,#E0A800); }
+    .eg-member-card.st-flag { border-color: var(--red); }
+    .eg-member-header {
+      display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer;
+    }
+    .eg-member-icon { font-size: 16px; flex-shrink: 0; }
+    .eg-member-name { font-size: 14px; font-weight: 600; }
+    .eg-member-action { font-size: 12px; color: var(--muted2); }
+    .eg-reason-chip {
+      display: inline-flex; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600;
+      border: 1px solid; margin: 2px 2px 0 0;
+    }
+    .st-flag .eg-reason-chip { background: var(--red-bg,#fff2f2); border-color: var(--red); color: var(--red); }
+    .st-warn .eg-reason-chip { background: var(--yellow-bg,#fffbeb); border-color: var(--yellow-chip,#E0A800); color: #7A5800; }
+    .eg-member-chevron { font-size: 11px; color: var(--muted2); flex-shrink: 0; transition: transform 0.2s; margin-left: auto; }
+    .eg-member-card.open .eg-member-chevron { transform: rotate(180deg); }
+    .eg-member-detail { display: none; padding: 0 14px 14px; border-top: 1px solid var(--border); }
+    .eg-member-card.open .eg-member-detail { display: block; }
+    .eg-detail-row {
+      display: flex; gap: 8px; align-items: baseline; padding: 7px 0;
+      border-bottom: 1px solid var(--border); font-size: 12px;
+    }
+    .eg-detail-row:last-child { border-bottom: none; }
+    .eg-detail-qn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: var(--muted2); min-width: 24px; }
+    .eg-detail-qt { flex: 1; color: var(--muted2); }
+    .eg-detail-comment { margin-top: 6px; padding: 7px 10px; background: var(--surface2); border-radius: 6px; font-size: 12px; color: var(--muted2); font-style: italic; }
+
+    .eg-accordion-btn {
+      width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 0 16px; margin-bottom: 8px;
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 600;
+      color: var(--muted2); cursor: pointer;
+    }
+    .eg-accordion-btn .chev { transition: transform 0.2s; }
+    .eg-accordion-btn.open .chev { transform: rotate(180deg); }
+    .eg-accordion-body { display: none; margin-bottom: 10px; }
+    .eg-accordion-body.open { display: block; }
+    .eg-detail-tbl-row {
+      display: flex; align-items: baseline; gap: 8px; font-size: 12px;
+      padding: 7px 0; border-bottom: 1px solid var(--border);
+    }
+    .eg-detail-tbl-row:last-child { border-bottom: none; }
+    .eg-tbl-vid { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: var(--muted2); min-width: 28px; }
+    .eg-tbl-q   { flex: 1; color: var(--muted2); }
+    .eg-tbl-val { font-weight: 700; flex-shrink: 0; }
+    .eg-val-si  { color: var(--green); } .eg-val-no { color: var(--red); }
+    .eg-val-par { color: #7A5800; }     .eg-val-na { color: var(--muted2); }
+
+    .eg-veredicto-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+    .eg-veredicto-title { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); margin-bottom: 12px; }
+    .eg-v-radios { display: flex; flex-wrap: wrap; gap: 8px; }
+    .eg-v-label {
+      display: inline-flex; align-items: center; gap: 8px;
+      min-height: 40px; padding: 0 16px; border-radius: 99px;
+      border: 1.5px solid var(--border); background: var(--surface2);
+      font-size: 13px; font-weight: 600; color: var(--muted2); cursor: pointer; user-select: none;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .eg-v-label input { display: none; }
+    .eg-v-label.v-aprobar.sel    { background: var(--green-bg);       border-color: var(--green);  color: var(--green); }
+    .eg-v-label.v-noaprobar.sel  { background: var(--red-bg,#fff2f2); border-color: var(--red);    color: var(--red); }
+
+    .eg-notas-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+    .eg-notas-title { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); margin-bottom: 3px; }
+    .eg-notas-sub { font-size: 11px; color: var(--muted2); font-style: italic; margin-bottom: 12px; }
+    .eg-nota-card {
+      display: flex; align-items: flex-start; gap: 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; padding: 12px 14px; background: var(--surface2);
+      cursor: pointer; user-select: none; margin-bottom: 8px;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .eg-nota-card.sel { background: var(--yellow-bg,#fffbeb); border-color: var(--yellow-chip,#E0A800); }
+    .eg-nota-check {
+      width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0; margin-top: 1px;
+      border: 1.5px solid var(--border); background: var(--surface);
+      display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+    .eg-nota-card.sel .eg-nota-check { background: var(--yellow-chip,#E0A800); border-color: var(--yellow-chip,#E0A800); color: #fff; }
+    .eg-nota-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .eg-nota-desc  { font-size: 12px; color: var(--muted2); }
+
+    .eg-comment-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+    .eg-comment-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); margin-bottom: 10px; }
+    .eg-comment-ta {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px;
+      line-height: 1.5; resize: vertical; min-height: 80px;
+      background: var(--surface2); color: var(--text); outline: none;
+    }
+    .eg-comment-ta:focus { border-color: var(--brand); }
+
+    .eg-action-bar {
+      position: sticky; bottom: 0; left: 0; right: 0; z-index: 30;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 10px 16px 16px;
+      display: flex; gap: 9px; align-items: center;
+    }
+    .eg-btn-send {
+      flex: 1; min-height: 48px; border-radius: 99px;
+      background: var(--brand); color: #fff; border: none;
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .eg-btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+    .eg-btn-edit-res {
+      flex: 0 0 auto; min-height: 48px; padding: 0 18px; border-radius: 99px;
+      background: transparent; color: var(--muted2); border: 1.5px solid var(--border);
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .eg-opt-tag {
+      font-size: 9px; font-weight: 600; letter-spacing: 0.05em;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted2); border-radius: 99px; padding: 1px 8px;
+      text-transform: uppercase; margin-left: 6px;
+    }
+    .eg-spacer { height: calc(70px + 16px); }
+  </style>
 </head>
 <body>
 <div class="app" id="app" style="display:none">
@@ -43,7 +294,7 @@
         <div class="page-sub">Grupos asignados para evaluación en campo</div>
       </div>
       <div id="grupos-list">
-        <div style="text-align:center;padding:40px;color:var(--muted);font-family:'DM Mono',monospace">
+        <div style="text-align:center;padding:40px;color:var(--muted);font-family:'IBM Plex Mono',monospace">
           Cargando grupos…
         </div>
       </div>
@@ -167,6 +418,23 @@
       </div>
     </div>
 
+
+    <!-- ═══ VISTA: EVALUACIÓN GRUPAL CE (multi-step) ═══ -->
+    <div id="view-evaluacion-ce" class="view fade-in" style="display:none">
+      <!-- barra de progreso sticky bajo el topbar -->
+      <div class="eg-top-bar" id="eg-top-bar">
+        <div class="eg-step-row">
+          <span class="eg-step-label" id="eg-step-label"><strong>Paso 1</strong> de 5</span>
+          <span class="eg-step-time" id="eg-step-time">~2 min</span>
+        </div>
+        <div class="eg-progress-track">
+          <div class="eg-progress-fill" id="eg-progress-fill" style="width:20%"></div>
+        </div>
+      </div>
+      <!-- contenido dinámico de la evaluación -->
+      <div id="eg-content" style="padding:20px 0 8px"></div>
+    </div>
+
   </main>
 </div>
 
@@ -284,7 +552,7 @@ async function cargarMisGrupos() {
     container.innerHTML = `
       <div style="text-align:center;padding:60px;color:var(--muted)">
         <div style="font-size:40px;margin-bottom:16px">📭</div>
-        <div style="font-family:'DM Mono',monospace;font-size:13px">Sin grupos asignados por el momento</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px">Sin grupos asignados por el momento</div>
       </div>
     `;
     return;
@@ -298,7 +566,7 @@ async function cargarMisGrupos() {
         <div class="flex-between" style="margin-bottom:16px">
           <div>
             <div style="font-size:18px;font-weight:700">${g.nombre}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${a.direccion}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted)">${a.direccion}</div>
           </div>
           <div>${estatusBadge(g.estatus)}</div>
         </div>
@@ -384,8 +652,8 @@ function renderGrupoCard() {
 
     ${todosCE ? `
       <div style="margin-top:16px">
-        <button class="btn btn-primary" style="width:100%" onclick="irCalificacionGrupal()">
-          → Calificación grupal
+        <button class="btn btn-primary" style="width:100%" onclick="irEvaluacionGrupalCE()">
+          → Evaluación grupal
         </button>
       </div>
     ` : `
@@ -410,7 +678,7 @@ async function evalIntegrante(integranteId) {
 
   document.getElementById('int-score-mini').innerHTML = `
     <div style="text-align:center">
-      <div style="font-size:40px;font-weight:800;font-family:'DM Mono',monospace">${p.score_ipp}</div>
+      <div style="font-size:40px;font-weight:800;font-family:'IBM Plex Mono',monospace">${p.score_ipp}</div>
       ${badgeGrado(p.grado_ipp)}
     </div>
   `;
@@ -445,7 +713,7 @@ function renderChecklist() {
             <div class="checklist-q">${item.q}</div>
             <div class="checklist-answer">
               <textarea class="field" style="width:100%;background:var(--bg);border:1px solid var(--border);
-                border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;
+                border-radius:8px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;
                 padding:10px;outline:none;resize:vertical;min-height:60px"
                 placeholder="Observaciones…"
                 onchange="checklistState['${item.id}']=this.value;verificarChecklist()"
@@ -572,7 +840,7 @@ function renderEncuesta() {
                 <div class="likert-btn" data-id="${item.id}" data-val="${n}"
                   style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);
                     display:flex;align-items:center;justify-content:center;font-size:12px;
-                    font-family:'DM Mono',monospace;cursor:pointer;transition:all 0.15s"
+                    font-family:'IBM Plex Mono',monospace;cursor:pointer;transition:all 0.15s"
                   onclick="selectLikert('${item.id}',${n})">
                   ${n}
                 </div>
@@ -590,9 +858,9 @@ function selectLikert(id, val) {
   likertState[id] = val;
   document.querySelectorAll(`[data-id="${id}"]`).forEach(el => {
     const isSelected = parseInt(el.dataset.val) === val;
-    el.style.background = isSelected ? 'rgba(232,255,71,0.15)' : 'transparent';
-    el.style.borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
-    el.style.color = isSelected ? 'var(--accent)' : 'var(--text)';
+    el.style.background = isSelected ? 'rgba(46,125,50,0.15)' : 'transparent';
+    el.style.borderColor = isSelected ? 'var(--brand)' : 'var(--border)';
+    el.style.color = isSelected ? 'var(--brand)' : 'var(--text)';
   });
 }
 
@@ -665,7 +933,7 @@ async function irCalificacionGrupal() {
             return `
               <tr>
                 <td>${p.nombre_completo} ${i.es_lider ? '⭐' : ''}</td>
-                <td><strong style="font-family:'DM Mono',monospace">${p.score_ipp}</strong></td>
+                <td><strong style="font-family:'IBM Plex Mono',monospace">${p.score_ipp}</strong></td>
                 <td>${badgeGrado(p.grado_ipp)}</td>
                 <td>${i.decision_ce === 'aprobado'
                   ? '<span style="color:var(--success);font-weight:600">✓ Aprobada</span>'
@@ -679,23 +947,23 @@ async function irCalificacionGrupal() {
     </div>
   `;
 
-  const colorGrupal = { A: '#2ed573', B: '#7c6af7', C: '#ffa502', D: '#ff4757' }[gradoGrupal];
+  const colorGrupal = { A: 'var(--green)', B: 'var(--purple)', C: 'var(--yellow-chip)', D: 'var(--red)' }[gradoGrupal];
   document.getElementById('grupal-resultado').innerHTML = `
     <div style="display:flex;align-items:center;gap:32px">
       <div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px">SCORE PROMEDIO INDIVIDUAL</div>
-        <div style="font-size:28px;font-weight:800;font-family:'DM Mono',monospace">${scorePromedio}</div>
+        <div style="font-size:28px;font-weight:800;font-family:'IBM Plex Mono',monospace">${scorePromedio}</div>
       </div>
       ${penalizacion > 0 ? `
         <div>
           <div style="font-size:11px;color:var(--danger);margin-bottom:6px">PENALIZACIÓN</div>
-          <div style="font-size:28px;font-weight:800;font-family:'DM Mono',monospace;color:var(--danger)">-${penalizacion}</div>
+          <div style="font-size:28px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:var(--danger)">-${penalizacion}</div>
           <div style="font-size:11px;color:var(--muted)">${rechazados.length} integrante(s) rechazada(s)</div>
         </div>
       ` : ''}
       <div style="margin-left:auto;text-align:right">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px">SCORE GRUPAL FINAL</div>
-        <div style="font-size:48px;font-weight:800;font-family:'DM Mono',monospace;color:${colorGrupal}">${scoreGrupal}</div>
+        <div style="font-size:48px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:${colorGrupal}">${scoreGrupal}</div>
         ${badgeGrado(gradoGrupal)}
       </div>
     </div>
@@ -762,6 +1030,644 @@ async function guardarDecisionGrupal() {
 function volverAGrupo() {
   showView('mis-grupos');
   renderGrupoCard();
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  EVALUACIÓN GRUPAL CE — motor multi-pantalla
+//  Secuencia lógica basada en evaluacion-ce-v6.html
+//  Fórmula matemática de irCalificacionGrupal() preservada
+// ═══════════════════════════════════════════════════════
+
+// ── Variables de estado de la evaluación ──────────────
+let egAnswers      = {};
+let egScreen       = 1;
+let egMembers      = [];        // nombres de integrantes activos
+let egVeredicto    = { opcion: 'aprobar' };
+let egNotas        = { urgencia: false, interaccion: false };
+let egGeneralComment = '';
+// Math results (calculados por irCalificacionGrupal, reutilizados aquí)
+let egScoreGrupal  = 0;
+let egGradoGrupal  = '';
+
+// ── Preguntas (VARS) — idénticas al HTML de referencia ──
+const EG_VARS = [
+  { id:'V1',  w:5,  q:'¿Llegaron todas y se mantuvieron durante la sesión?',                                     drill:'Integrantes que faltaron o se fueron durante la sesión:',           csOnNo:false },
+  { id:'V2',  w:12, q:'¿El grupo respondió sin ayuda de alguien ajeno?',                                         drill:'Integrantes que necesitaron ayuda de alguien ajeno:',               csOnNo:false },
+  { id:'V3',  w:8,  q:'¿Cada integrante respondió por sí misma (sin que una contestara por todas)?',             drill:'Integrantes a quienes les contestaron o soplaron respuestas:',      csOnNo:false },
+  { id:'V4',  w:10, q:'¿Pudieron describir dónde vive cada una (zona / fachada / cómo llegar)?',                 drill:'Integrantes cuyo domicilio no supieron ubicar:',                    csOnNo:false },
+  { id:'V5',  w:8,  q:'¿Pudieron describir el negocio de cada una (qué venden y dónde está)?',                  drill:'Integrantes cuyo negocio no supieron ubicar:',                      csOnNo:false },
+  { id:'V6',  w:10, q:'¿Identidad verificada (INE vs rostro) para todas?',                                       drill:'Integrantes cuya identidad no se pudo verificar:',                  csOnNo:true  },
+  { id:'V7',  w:8,  q:'¿Negocio consistente (lo que dicen vs lo observado) para todas?',                         drill:'Integrantes con inconsistencias en su negocio:',                    csOnNo:false },
+  { id:'V8',  w:12, q:'¿Reconocen deudas y saben cuánto pagan y a quién?',                                       drill:'Integrantes que no reconocieron o dudaron de sus deudas:',          csOnNo:false, allowNA:true },
+  { id:'V9',  w:15, q:'¿Quedó claro para todas qué es un crédito solidario y qué implica?',                      drill:'Integrantes que no lo tuvieron claro:',                             csOnNo:true  },
+  { id:'V10', w:12, q:'¿Aceptan que si una falla, las demás responden?',                                         drill:'Integrantes que dudaron o no aceptaron:',                           csOnNo:false },
+];
+
+const EG_SCREENS = [
+  null,
+  { qs:[0,1,2], section:'Arranque',     title:'Evaluación inicial del grupo',  mins:'~2 min' },
+  { qs:[3,4],   section:'Ubicabilidad', title:'Ubicabilidad de integrantes',    mins:'~1 min' },
+  { qs:[5,6,7], section:'Verificación', title:'Identidad, negocio y buró',      mins:'~3 min' },
+  { qs:[8,9],   section:'Producto',     title:'Comprensión del producto',       mins:'~2 min' },
+  { qs:[],      section:'Resultado',    title:'Resultado de la evaluación',     mins:''       },
+];
+
+const EG_RF_QS    = [1,2,5,7,8,9];
+const EG_REASON   = ['Asistencia','Ayuda ajena','Dominancia','Domicilio','Negocio','Identidad','Inconsistencia','Buró','Solidario','Compromiso'];
+const EG_VAL_LABEL = { si:'Sí', par:'Parcial', no:'No', na:'No aplica' };
+const EG_VAL_CLS   = { si:'eg-val-si', par:'eg-val-par', no:'eg-val-no', na:'eg-val-na' };
+
+// ── Punto de entrada ──────────────────────────────────
+async function irEvaluacionGrupalCE() {
+  // 1. Calcular math grupal (fórmula preservada de irCalificacionGrupal)
+  const aprobados  = integrantesGrupo.filter(i => i.decision_ce === 'aprobado');
+  const rechazados = integrantesGrupo.filter(i => i.decision_ce !== 'aprobado');
+  const scores     = aprobados.map(i => i.prospectos.score_ipp || 0);
+
+  const scorePromedio = scores.length
+    ? Math.round(scores.reduce((a,b) => a+b, 0) / scores.length)
+    : 0;
+  const penalizacion = rechazados.length * 5;
+  egScoreGrupal = Math.max(0, scorePromedio - penalizacion);
+
+  if      (egScoreGrupal >= 80) egGradoGrupal = 'A';
+  else if (egScoreGrupal >= 65) egGradoGrupal = 'B';
+  else if (egScoreGrupal >= 50) egGradoGrupal = 'C';
+  else                          egGradoGrupal = 'D';
+
+  const tieneD = aprobados.some(i =>
+    i.prospectos.grado_postburo === 'D' || i.prospectos.grado_ipp === 'D'
+  );
+  if (tieneD && egGradoGrupal === 'A') egGradoGrupal = 'B';
+
+  // mantener compat con guardarDecisionGrupal
+  window._scoreGrupal = egScoreGrupal;
+  window._gradoGrupal = egGradoGrupal;
+
+  // 2. Poblar lista de nombres para el drill-down
+  egMembers = integrantesGrupo
+    .filter(i => i.decision_ce === 'aprobado')
+    .map(i => i.prospectos.nombre_completo);
+
+  // 3. Reset estado
+  egAnswers = {}; egScreen = 1;
+  egVeredicto = { opcion: 'aprobar' };
+  egNotas = { urgencia: false, interaccion: false };
+  egGeneralComment = '';
+
+  showView('evaluacion-ce');
+  egRender();
+}
+
+// ── Render principal ──────────────────────────────────
+function egRender() {
+  egUpdateBar();
+  egScreen === 5 ? egRenderResult() : egRenderScreen();
+}
+
+function egUpdateBar() {
+  const pct = Math.round((egScreen / 5) * 100);
+  document.getElementById('eg-progress-fill').style.width = pct + '%';
+  document.getElementById('eg-step-label').innerHTML =
+    `<strong>Paso ${egScreen}</strong> de 5`;
+  document.getElementById('eg-step-time').textContent =
+    EG_SCREENS[egScreen]?.mins || '';
+}
+
+// ── Pantallas 1–4 ─────────────────────────────────────
+function egRenderScreen() {
+  const sc  = EG_SCREENS[egScreen];
+  const el  = document.getElementById('eg-content');
+
+  let html = `
+    <div style="padding:0 16px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+        color:var(--brand);margin-bottom:3px">${sc.section}</div>
+      <div style="font-size:19px;font-weight:700;margin-bottom:3px">${sc.title}</div>
+      <div style="font-size:11px;color:var(--muted2);font-style:italic;margin-bottom:14px">
+        Sí = todas &nbsp;·&nbsp; Parcial = algunas &nbsp;·&nbsp; No = nadie
+      </div>
+      <div class="eg-members-bar">
+        <span class="eg-members-names">👥 <strong>${egMembers.join(' · ')}</strong></span>
+      </div>
+    </div>
+    <div style="padding:0 16px">
+  `;
+
+  sc.qs.forEach(qi => {
+    const v   = EG_VARS[qi];
+    const a   = egAnswers[qi] || {};
+    const err = a._err;
+    html += `
+      <div class="eg-q-card${err?' error':''}" id="eg-qcard-${qi}">
+        <div class="eg-q-text">
+          <span class="eg-q-n">${qi+1}.</span> ${v.q}
+        </div>
+        <div class="eg-chips">
+          <span class="eg-chip c-si${a.val==='si'?' sel':''}"   data-qi="${qi}" data-v="si">Sí — todas</span>
+          <span class="eg-chip c-par${a.val==='par'?' sel':''}" data-qi="${qi}" data-v="par">Parcial — algunas</span>
+          <span class="eg-chip c-no${a.val==='no'?' sel':''}"   data-qi="${qi}" data-v="no">No — nadie</span>
+          ${v.allowNA ? `<span class="eg-chip c-na${a.val==='na'?' sel':''}" data-qi="${qi}" data-v="na">No aplica</span>` : ''}
+        </div>
+        ${v.csOnNo && a.val==='no' ? `<div class="eg-badge-cs">⚑ Revisar con CS</div>` : ''}
+        ${err && !a.val ? `<div class="eg-err-msg">Selecciona una respuesta.</div>` : ''}
+        <div class="eg-drill${a.val==='par'?' open':''}" id="eg-drill-${qi}">
+          <div class="eg-drill-label">${v.drill} <span class="req">*</span></div>
+          <div class="eg-m-chips" id="eg-mc-${qi}">
+            ${egMembers.map((m,mi) =>
+              `<span class="eg-m-chip${(a.selected||[]).includes(mi)?' sel':''}"
+                data-qi="${qi}" data-mi="${mi}">${m}</span>`
+            ).join('')}
+          </div>
+          ${err && a.val==='par' && !(a.selected||[]).length
+            ? `<div class="eg-err-msg">Selecciona al menos una integrante.</div>` : ''}
+          <textarea class="eg-drill-ta" id="eg-ta-${qi}"
+            placeholder="Comentario (opcional)…">${a.comment||''}</textarea>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `
+    <div class="eg-nav">
+      ${egScreen > 1
+        ? `<button class="eg-btn-ghost" id="eg-btnBack">← Atrás</button>`
+        : `<button class="eg-btn-ghost" onclick="volverAGrupoDesdeGrupal()">← Volver</button>`}
+      <button class="eg-btn-primary" id="eg-btnNext">
+        ${egScreen < 4 ? 'Siguiente →' : 'Ver resultado →'}
+      </button>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+
+  // Eventos chips respuesta
+  document.querySelectorAll('.eg-chip[data-qi]').forEach(c =>
+    c.addEventListener('click', () => egOnChip(+c.dataset.qi, c.dataset.v))
+  );
+  // Eventos chips integrantes
+  document.querySelectorAll('.eg-m-chip').forEach(c =>
+    c.addEventListener('click', () => egOnMember(+c.dataset.qi, +c.dataset.mi))
+  );
+  // Eventos textarea comentario
+  document.querySelectorAll('.eg-drill-ta').forEach(t =>
+    t.addEventListener('input', () => {
+      const qi = +t.id.replace('eg-ta-','');
+      if (!egAnswers[qi]) egAnswers[qi] = {};
+      egAnswers[qi].comment = t.value;
+    })
+  );
+  // Navegación
+  document.getElementById('eg-btnBack')?.addEventListener('click', () => {
+    egScreen--; egRender(); window.scrollTo(0,0);
+  });
+  document.getElementById('eg-btnNext').addEventListener('click', egTryNext);
+}
+
+function egOnChip(qi, val) {
+  if (!egAnswers[qi]) egAnswers[qi] = {};
+  egAnswers[qi].val = val;
+  egAnswers[qi]._err = false;
+  if (val !== 'par') egAnswers[qi].selected = [];
+  egRender();
+}
+
+function egOnMember(qi, mi) {
+  if (!egAnswers[qi]) egAnswers[qi] = {};
+  if (!egAnswers[qi].selected) egAnswers[qi].selected = [];
+  const idx = egAnswers[qi].selected.indexOf(mi);
+  idx === -1
+    ? egAnswers[qi].selected.push(mi)
+    : egAnswers[qi].selected.splice(idx, 1);
+  egAnswers[qi]._err = false;
+  document.querySelectorAll(`.eg-m-chip[data-qi="${qi}"]`).forEach(c =>
+    c.classList.toggle('sel', egAnswers[qi].selected.includes(+c.dataset.mi))
+  );
+  document.querySelector(`#eg-drill-${qi} .eg-err-msg`)?.remove();
+}
+
+function egTryNext() {
+  let ok = true;
+  EG_SCREENS[egScreen].qs.forEach(qi => {
+    if (!egAnswers[qi]) egAnswers[qi] = {};
+    const a = egAnswers[qi];
+    if (!a.val) { a._err = true; ok = false; }
+    else if (a.val === 'par' && !(a.selected||[]).length) { a._err = true; ok = false; }
+    else a._err = false;
+  });
+  if (!ok) { egRender(); return; }
+  egScreen++;
+  egRender();
+  window.scrollTo(0,0);
+}
+
+// ── Score CE (ponderado igual que el HTML de referencia) ─
+function egCalcScore() {
+  let wSum = 0, wTotal = 0;
+  EG_VARS.forEach((v, qi) => {
+    if (qi === 7 && egAnswers[qi]?.val === 'na') return;
+    const n = egAnswers[qi]?.val === 'si' ? 1
+            : egAnswers[qi]?.val === 'par' ? 0.5 : 0;
+    wSum   += v.w * n;
+    wTotal += v.w;
+  });
+  return (wSum / wTotal) * 100;
+}
+
+// ── Pantalla 5: Resultado ─────────────────────────────
+function egRenderResult() {
+  const rawScore       = egCalcScore();
+  const score          = Math.round(rawScore);
+  const groupHasRedFlag = EG_RF_QS.some(qi => egAnswers[qi]?.val === 'no');
+
+  let nivelClass, nivelIcon, nivelTitle, nivelDesc;
+  if (rawScore >= 80 && !groupHasRedFlag) {
+    nivelClass = 'eg-nivel-estandar';
+    nivelIcon  = '✅';
+    nivelTitle = 'Revisión estándar';
+    nivelDesc  = 'Pocas alertas detectadas. CS revisa normalmente.';
+  } else if (rawScore < 65) {
+    nivelClass = 'eg-nivel-prioritaria';
+    nivelIcon  = '🚩';
+    nivelTitle = 'Revisión prioritaria';
+    nivelDesc  = 'Se detectaron señales críticas. CS debe profundizar antes de decidir.';
+  } else {
+    nivelClass = 'eg-nivel-atencion';
+    nivelIcon  = '⚠️';
+    nivelTitle = 'Revisión con atención';
+    nivelDesc  = 'Hay señales que requieren validación adicional por CS.';
+  }
+
+  // Estado por integrante
+  const memberData = egMembers.map((name, mi) => {
+    const flaggedIn   = EG_VARS.map((_,qi) => qi).filter(qi =>
+      egAnswers[qi]?.val === 'par' && (egAnswers[qi]?.selected||[]).includes(mi)
+    );
+    const flaggedInRF = flaggedIn.filter(qi => EG_RF_QS.includes(qi));
+    let status;
+    if (flaggedInRF.length > 0) status = 'flag';
+    else if (flaggedIn.length > 0 || groupHasRedFlag) status = 'warn';
+    else status = 'ok';
+    return { name, mi, status, flaggedIn, reasons: flaggedIn.map(qi => EG_REASON[qi]) };
+  });
+
+  const nOk   = memberData.filter(m => m.status==='ok').length;
+  const nWarn = memberData.filter(m => m.status==='warn').length;
+  const nFlag = memberData.filter(m => m.status==='flag').length;
+
+  // Dimensiones
+  const dimStatus = (qs) => {
+    const vals = qs.map(qi => egAnswers[qi]?.val);
+    if (vals.some(v => v==='no'))  return '🚩';
+    if (vals.some(v => v==='par')) return '⚠️';
+    return '✅';
+  };
+  const EG_DIMS = [
+    { name:'Entendimiento del producto',  qs:[8,9],     label:'V9 · V10' },
+    { name:'Detección de prestanombre',   qs:[1,2],     label:'V2 · V3'  },
+    { name:'Cohesión del grupo',          qs:[3,4,2],   label:'V4 · V5'  },
+    { name:'Verificabilidad e identidad', qs:[0,5,7,6], label:'V1 · V6 · V8' },
+  ];
+
+  // Cards de integrantes
+  const memberCardsHTML = memberData.map(m => {
+    const stClass   = `st-${m.status}`;
+    const icon      = m.status==='flag' ? '🚩' : m.status==='warn' ? '⚠️' : '✅';
+    const action    = m.status==='flag' ? 'Revisar posible exclusión' : m.status==='warn' ? 'Revisar' : 'Sin alertas';
+    const reasonsHTML = m.reasons.map(r =>
+      `<span class="eg-reason-chip">${r}</span>`).join('');
+    const detailRows = m.flaggedIn.map(qi => {
+      const comment = egAnswers[qi]?.comment?.trim();
+      return `<div class="eg-detail-row">
+        <span class="eg-detail-qn">${EG_VARS[qi].id}</span>
+        <span class="eg-detail-qt">${EG_VARS[qi].q.length>55
+          ? EG_VARS[qi].q.substring(0,55)+'…' : EG_VARS[qi].q}</span>
+      </div>${comment ? `<div class="eg-detail-comment">"${comment}"</div>` : ''}`;
+    }).join('');
+    const hasDetail = m.flaggedIn.length > 0;
+    return `<div class="eg-member-card ${stClass}" id="eg-mc-card-${m.mi}">
+      <div class="eg-member-header" data-mi="${m.mi}">
+        <span class="eg-member-icon">${icon}</span>
+        <div style="flex:1;min-width:0">
+          <div class="eg-member-name">${m.name}</div>
+          <div class="eg-member-action">${action}</div>
+          ${reasonsHTML ? `<div style="margin-top:4px">${reasonsHTML}</div>` : ''}
+        </div>
+        ${hasDetail ? `<span class="eg-member-chevron">▼</span>` : ''}
+      </div>
+      ${hasDetail ? `<div class="eg-member-detail">${detailRows}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // Tabla de detalle
+  const detailTableHTML = EG_VARS.map((v,qi) => {
+    const val = egAnswers[qi]?.val || '—';
+    return `<div class="eg-detail-tbl-row">
+      <span class="eg-tbl-vid">${v.id}</span>
+      <span class="eg-tbl-q">${v.q.length>55
+        ? v.q.substring(0,55)+'…' : v.q}</span>
+      <span class="eg-tbl-val ${EG_VAL_CLS[val]||''}">${EG_VAL_LABEL[val]||'—'}</span>
+    </div>`;
+  }).join('');
+
+  // Score grupal IPP badge
+  const colorGrupal = { A:'var(--green)', B:'var(--purple,#7c3aed)', C:'var(--yellow-chip,#E0A800)', D:'var(--red)' }[egGradoGrupal];
+
+  const el = document.getElementById('eg-content');
+  el.innerHTML = `
+    <div style="padding:0 16px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+        color:var(--brand);margin-bottom:3px">Resultado</div>
+
+      <!-- A: Nivel de revisión (CE) -->
+      <div class="eg-res-card ${nivelClass}">
+        <div class="eg-res-label">
+          <span>Nivel de revisión (CS)</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted2)">
+            Score CE: ${score}/100${egAnswers[7]?.val==='na' ? ' *' : ''}
+          </span>
+        </div>
+        <div class="eg-res-big">${nivelIcon} ${nivelTitle}</div>
+        <div class="eg-res-desc">${nivelDesc}</div>
+        ${groupHasRedFlag ? `<div class="eg-badge-critico">🚩 Señal crítica detectada</div>` : ''}
+      </div>
+
+      <!-- A2: Score IPP grupal (resultado matemático) -->
+      <div class="eg-res-card">
+        <div class="eg-res-label"><span>Score IPP grupal</span></div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="font-size:40px;font-weight:800;font-family:'IBM Plex Mono',monospace;color:${colorGrupal}">
+            ${egScoreGrupal}
+          </div>
+          <div>${badgeGrado(egGradoGrupal)}</div>
+        </div>
+        <div class="score-bar" style="margin-top:10px">
+          <div class="score-bar-fill" style="width:${egScoreGrupal}%;background:${colorGrupal}"></div>
+        </div>
+      </div>
+
+      <!-- B: Resumen rápido -->
+      <div class="eg-summary-row">
+        <div class="eg-summary-cell s-ok">
+          <span class="eg-summary-n">${nOk}</span>
+          <span class="eg-summary-sub">✅ Sin alertas</span>
+        </div>
+        <div class="eg-summary-cell s-warn">
+          <span class="eg-summary-n">${nWarn}</span>
+          <span class="eg-summary-sub">⚠️ Revisar</span>
+        </div>
+        <div class="eg-summary-cell s-flag">
+          <span class="eg-summary-n">${nFlag}</span>
+          <span class="eg-summary-sub">🚩 Señal crítica</span>
+        </div>
+      </div>
+
+      <!-- C: Dimensiones -->
+      <div class="eg-res-card">
+        <div class="eg-res-label"><span>Checklist por dimensión</span></div>
+        ${EG_DIMS.map(d => `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
+            border-bottom:1px solid var(--border);font-size:13px">
+            <span style="font-size:14px">${dimStatus(d.qs)}</span>
+            <span style="flex:1">${d.name}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;
+              color:var(--muted2)">${d.label}</span>
+          </div>`).join('')}
+      </div>
+
+      <!-- D: Integrantes -->
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+        color:var(--muted2);margin-bottom:8px;margin-top:4px">Integrantes — estado y acción sugerida</div>
+      ${memberCardsHTML}
+
+      <!-- E: Detalle colapsable -->
+      <button class="eg-accordion-btn" id="eg-btnDetailToggle">
+        <span>Ver detalle por pregunta</span>
+        <span class="chev">▼</span>
+      </button>
+      <div class="eg-accordion-body" id="eg-detailBody">
+        ${detailTableHTML}
+      </div>
+      ${egAnswers[7]?.val==='na'
+        ? `<p style="font-size:11px;color:var(--muted2);font-style:italic;margin-bottom:12px">
+            * Score reescalado — V8 marcada como No aplica.</p>` : ''}
+
+      <!-- H: Veredicto CE -->
+      <div class="eg-veredicto-box">
+        <div class="eg-veredicto-title">Veredicto (CE)</div>
+        <div class="eg-v-radios">
+          <label class="eg-v-label v-aprobar${egVeredicto.opcion==='aprobar'?' sel':''}">
+            <input type="radio" name="eg-veredicto" value="aprobar"
+              ${egVeredicto.opcion==='aprobar'?'checked':''}>
+            ✅ Aprobar
+          </label>
+          <label class="eg-v-label v-noaprobar${egVeredicto.opcion==='noaprobar'?' sel':''}">
+            <input type="radio" name="eg-veredicto" value="noaprobar"
+              ${egVeredicto.opcion==='noaprobar'?'checked':''}>
+            🚩 No aprobar
+          </label>
+        </div>
+        ${egVeredicto.opcion === 'noaprobar' ? `
+          <div style="margin-top:12px">
+            <label style="font-size:11px;font-weight:700;color:var(--muted2);
+              text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px">
+              Motivo <span style="color:var(--red)">(obligatorio)</span>
+            </label>
+            <textarea class="eg-drill-ta" id="eg-motivo-noaprobar"
+              placeholder="Motivo de no aprobación…" rows="3"
+              style="min-height:0">${egVeredicto.motivo||''}</textarea>
+          </div>` : ''}
+      </div>
+
+      <!-- I: Notas para CS -->
+      <div class="eg-notas-box">
+        <div class="eg-notas-title">
+          Notas para CS <span class="eg-opt-tag">Opcional</span>
+        </div>
+        <div class="eg-notas-sub">Marca si lo notaste. No afecta el score.</div>
+        <div class="eg-nota-card${egNotas.urgencia?' sel':''}" id="eg-notaUrgencia">
+          <div class="eg-nota-check">${egNotas.urgencia?'✓':''}</div>
+          <div>
+            <div class="eg-nota-title">Urgencia</div>
+            <div class="eg-nota-desc">Prisa inusual por cerrar.</div>
+          </div>
+        </div>
+        <div class="eg-nota-card${egNotas.interaccion?' sel':''}" id="eg-notaInteraccion">
+          <div class="eg-nota-check">${egNotas.interaccion?'✓':''}</div>
+          <div>
+            <div class="eg-nota-title">Interacción no natural</div>
+            <div class="eg-nota-desc">No se sienten grupo real.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- G: Comentarios generales -->
+      <div class="eg-comment-box">
+        <div class="eg-comment-label">
+          Comentarios generales <span class="eg-opt-tag">Opcional</span>
+        </div>
+        <textarea class="eg-comment-ta" id="eg-generalComment"
+          placeholder="Observaciones adicionales sobre la sesión, el grupo o el contexto…"
+          >${egGeneralComment}</textarea>
+      </div>
+
+      <!-- Spacer para barra sticky -->
+      <div class="eg-spacer"></div>
+    </div>
+
+    <!-- Barra de acción sticky -->
+    <div class="eg-action-bar">
+      <button class="eg-btn-send" id="eg-btnSendCS">Guardar y enviar a CS →</button>
+      <button class="eg-btn-edit-res" id="eg-btnEditEval">← Editar</button>
+    </div>
+  `;
+
+  // Eventos acordeón miembros
+  document.querySelectorAll('.eg-member-header').forEach(h => {
+    h.addEventListener('click', () => {
+      const card = document.getElementById(`eg-mc-card-${h.dataset.mi}`);
+      if (card.querySelector('.eg-member-detail')) card.classList.toggle('open');
+    });
+  });
+
+  // Acordeón detalle
+  document.getElementById('eg-btnDetailToggle').addEventListener('click', function() {
+    this.classList.toggle('open');
+    document.getElementById('eg-detailBody').classList.toggle('open');
+  });
+
+  // Veredicto radios
+  document.querySelectorAll('input[name="eg-veredicto"]').forEach(r =>
+    r.addEventListener('change', () => {
+      egVeredicto.opcion = r.value;
+      if (r.value !== 'noaprobar') egVeredicto.motivo = '';
+      egRender();
+    })
+  );
+
+  // Motivo no aprobar
+  document.getElementById('eg-motivo-noaprobar')?.addEventListener('input', function() {
+    egVeredicto.motivo = this.value;
+  });
+
+  // Notas CS
+  document.getElementById('eg-notaUrgencia').addEventListener('click', () => {
+    egNotas.urgencia = !egNotas.urgencia; egRender();
+  });
+  document.getElementById('eg-notaInteraccion').addEventListener('click', () => {
+    egNotas.interaccion = !egNotas.interaccion; egRender();
+  });
+
+  // Comentario general
+  document.getElementById('eg-generalComment').addEventListener('input', function() {
+    egGeneralComment = this.value;
+  });
+
+  // Editar → volver al paso 4
+  document.getElementById('eg-btnEditEval').addEventListener('click', () => {
+    egScreen = 4; egRender(); window.scrollTo(0,0);
+  });
+
+  // Guardar snapshot
+  document.getElementById('eg-btnSendCS').addEventListener('click', egGuardarSnapshot);
+}
+
+// ── Guardar snapshot en evaluaciones_grupales ─────────
+async function egGuardarSnapshot() {
+  // Validar veredicto no aprobar con motivo
+  if (egVeredicto.opcion === 'noaprobar' && !egVeredicto.motivo?.trim()) {
+    toast('Escribe el motivo de no aprobación para continuar', 'error');
+    document.getElementById('eg-motivo-noaprobar')?.focus();
+    return;
+  }
+
+  const btn = document.getElementById('eg-btnSendCS');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+
+  const rawScore       = egCalcScore();
+  const groupHasRedFlag = EG_RF_QS.some(qi => egAnswers[qi]?.val === 'no');
+
+  let nivelRevision;
+  if (rawScore >= 80 && !groupHasRedFlag) nivelRevision = 'estandar';
+  else if (rawScore < 65)                 nivelRevision = 'prioritaria';
+  else                                    nivelRevision = 'atencion';
+
+  // Estado por integrante (snapshot legible)
+  const estadoIntegrantes = egMembers.map((name, mi) => {
+    const flaggedIn = EG_VARS.map((_,qi) => qi).filter(qi =>
+      egAnswers[qi]?.val === 'par' && (egAnswers[qi]?.selected||[]).includes(mi)
+    );
+    const flaggedInRF = flaggedIn.filter(qi => EG_RF_QS.includes(qi));
+    return {
+      nombre: name,
+      status: flaggedInRF.length > 0 ? 'flag' : flaggedIn.length > 0 ? 'warn' : 'ok',
+      preguntas_con_alerta: flaggedIn.map(qi => EG_VARS[qi].id),
+    };
+  });
+
+  // Serializar respuestas con texto legible
+  const respuestas = {};
+  EG_VARS.forEach((v, qi) => {
+    const a = egAnswers[qi] || {};
+    respuestas[v.id] = {
+      pregunta:   v.q,
+      respuesta:  EG_VAL_LABEL[a.val] || '—',
+      val_raw:    a.val || null,
+      integrantes_afectadas: (a.selected||[]).map(mi => egMembers[mi] || ''),
+      comentario: a.comment || null,
+    };
+  });
+
+  // Calcular versión (cuántas evaluaciones previas tiene este grupo)
+  const { count } = await sb.from('evaluaciones_grupales')
+    .select('id', { count: 'exact', head: true })
+    .eq('grupo_id', grupoActual.id);
+
+  const payload = {
+    grupo_id:           grupoActual.id,
+    version:            (count || 0) + 1,
+    respuestas_ce:      respuestas,
+    score_ce:           Math.round(rawScore),
+    nivel_revision:     nivelRevision,
+    group_red_flag:     groupHasRedFlag,
+    estado_integrantes: estadoIntegrantes,
+    veredicto:          egVeredicto.opcion,
+    motivo_rechazo:     egVeredicto.opcion === 'noaprobar' ? egVeredicto.motivo.trim() : null,
+    notas_ce: {
+      urgencia:    egNotas.urgencia,
+      interaccion: egNotas.interaccion,
+    },
+    comentario_general: egGeneralComment.trim() || null,
+    score_ipp_grupal:   egScoreGrupal,
+    grado_ipp_grupal:   egGradoGrupal,
+    aplicada_por:       currentUser.id,
+    // created_at generado automáticamente por Supabase
+  };
+
+  const { error } = await sb.from('evaluaciones_grupales').insert(payload);
+
+  if (error) {
+    toast('Error al guardar: ' + error.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Guardar y enviar a CS →';
+    return;
+  }
+
+  // Actualizar estatus del grupo según veredicto
+  const nuevoEstatus = egVeredicto.opcion === 'aprobar' ? 'aprobado_ce' : 'rechazado_ce';
+  await sb.from('grupos').update({
+    estatus:            nuevoEstatus,
+    score_grupal:       egScoreGrupal,
+    grado_grupal:       egGradoGrupal,
+    decision_ce:        egVeredicto.opcion,
+    motivo_rechazo_ce:  payload.motivo_rechazo,
+  }).eq('id', grupoActual.id);
+
+  toast(`Evaluación guardada — Grupo ${egVeredicto.opcion === 'aprobar' ? 'APROBADO ✓' : 'NO APROBADO ✗'}`);
+  await cargarMisGrupos();
+  showView('mis-grupos');
 }
 
 function volverAGrupoDesdeGrupal() {

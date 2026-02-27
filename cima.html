@@ -6,6 +6,52 @@
   <title>IPP — CIMA</title>
   <link rel="stylesheet" href="ipp-styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* ── CDC Dropzone ── */
+    .cdc-dropzone {
+      border: 2px dashed var(--border2);
+      border-radius: 10px;
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface2);
+      position: relative;
+    }
+    .cdc-dropzone:hover,
+    .cdc-dropzone.drag-over {
+      border-color: var(--brand);
+      background: var(--brand-light);
+    }
+    .cdc-dropzone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .cdc-dropzone-icon { font-size: 28px; margin-bottom: 8px; }
+    .cdc-dropzone-label { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .cdc-dropzone-label strong { color: var(--brand); }
+    .cdc-file-preview {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px;
+      background: var(--green-bg); border: 1px solid var(--green-chip);
+      border-radius: 8px; font-size: 13px; color: var(--green); margin-top: 10px;
+    }
+    .cdc-file-preview .cdc-fname {
+      flex: 1; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .cdc-file-preview .cdc-remove {
+      background: none; border: none; cursor: pointer; color: var(--red); font-size: 18px; padding: 0; line-height: 1;
+    }
+    .cdc-upload-progress { height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+    .cdc-upload-progress-bar { height: 100%; background: var(--brand); border-radius: 2px; width: 0; transition: width 0.3s ease; }
+    .cdc-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600;
+      padding: 2px 8px; border-radius: 20px; border: 1px solid;
+    }
+    .cdc-badge.tiene { background: var(--blue-bg);  border-color: var(--blue-chip);  color: var(--blue); }
+    .cdc-badge.falta { background: var(--surface2); border-color: var(--border2);    color: var(--muted2); }
+  </style>
 </head>
 <body>
 <div class="app" id="app" style="display:none">
@@ -88,12 +134,13 @@
               <th>Score IPP</th>
               <th>Grado</th>
               <th>Post-buró</th>
+              <th>CDC</th>
               <th>Estatus</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody id="tabla-prospectos">
-            <tr class="empty-row"><td colspan="7">Cargando…</td></tr>
+            <tr class="empty-row"><td colspan="8">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -352,9 +399,9 @@
           </div>
           <div class="score-bar-wrap">
             <div class="score-bar">
-              <div class="score-bar-fill" id="score-fill" style="width:0;background:#e8ff47"></div>
+              <div class="score-bar-fill" id="score-fill" style="width:0;background:var(--brand)"></div>
             </div>
-            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)" id="score-desc">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)" id="score-desc">
               Completa los campos marcados con ⚡ para calcular el score
             </div>
           </div>
@@ -364,6 +411,28 @@
             <span class="alert-icon">🚫</span>
             <div><strong>BLOQUEO PRE-BURÓ:</strong> Grado D. No se procede a consulta CDC.</div>
           </div>
+        </div>
+      </div>
+
+
+      <!-- Sección CDC — Carga de documento -->
+      <div class="card" style="margin-bottom:20px" id="cdc-card">
+        <div class="card-title">📄 Documento CDC <span style="font-size:10px;font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">(opcional al crear — puedes subirlo después)</span></div>
+        <div id="cdc-dropzone" class="cdc-dropzone" ondragover="cdcDragOver(event)" ondragleave="cdcDragLeave(event)" ondrop="cdcDrop(event)">
+          <input type="file" id="cdc-input" accept=".pdf,image/jpeg,image/png,image/webp" onchange="cdcFileSelected(this.files[0])" />
+          <div class="cdc-dropzone-icon">📂</div>
+          <div class="cdc-dropzone-label">
+            <strong>Arrastra el PDF o imagen aquí</strong><br>
+            o haz clic para seleccionar · PDF, JPG, PNG · máx 10 MB
+          </div>
+        </div>
+        <div id="cdc-preview" style="display:none" class="cdc-file-preview">
+          <span style="font-size:18px">📄</span>
+          <span class="cdc-fname" id="cdc-preview-name"></span>
+          <button class="cdc-remove" onclick="cdcClear()" title="Quitar archivo">✕</button>
+        </div>
+        <div class="cdc-upload-progress" id="cdc-progress-wrap" style="display:none">
+          <div class="cdc-upload-progress-bar" id="cdc-progress-bar"></div>
         </div>
       </div>
 
@@ -510,6 +579,38 @@
   </div>
 </div>
 
+
+<!-- ═══ MODAL: Subir CDC a prospecto existente ═══ -->
+<div class="modal-overlay" id="modal-cdc">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="cerrarModal('modal-cdc')">✕</button>
+    <div class="modal-title">📄 Documento CDC</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px" id="modal-cdc-nombre"></p>
+
+    <div id="modal-cdc-dropzone" class="cdc-dropzone" ondragover="cdcDragOver(event)" ondragleave="cdcDragLeave(event)" ondrop="cdcDropModal(event)">
+      <input type="file" id="modal-cdc-input" accept=".pdf,image/jpeg,image/png,image/webp" onchange="cdcFileSelectedModal(this.files[0])" />
+      <div class="cdc-dropzone-icon">📂</div>
+      <div class="cdc-dropzone-label">
+        <strong>Arrastra el PDF o imagen aquí</strong><br>
+        o haz clic para seleccionar · PDF, JPG, PNG · máx 10 MB
+      </div>
+    </div>
+    <div id="modal-cdc-preview" style="display:none" class="cdc-file-preview">
+      <span style="font-size:18px">📄</span>
+      <span class="cdc-fname" id="modal-cdc-preview-name"></span>
+      <button class="cdc-remove" onclick="cdcClearModal()" title="Quitar">✕</button>
+    </div>
+    <div class="cdc-upload-progress" id="modal-cdc-progress-wrap" style="display:none">
+      <div class="cdc-upload-progress-bar" id="modal-cdc-progress-bar"></div>
+    </div>
+
+    <div class="row" style="justify-content:flex-end;gap:12px;margin-top:20px">
+      <button class="btn btn-secondary" onclick="cerrarModal('modal-cdc')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-cdc-btn" onclick="subirCDCModal()" disabled>Subir CDC</button>
+    </div>
+  </div>
+</div>
+
 <script src="ipp-core.js"></script>
 <script>
 // ─── State ──────────────────────────────────────────────────
@@ -518,6 +619,141 @@ let prospectosPB = [];
 let cuentasCDC = [];
 let pbProspectoActual = null;
 let pbResultadoActual = null;
+
+// ─── CDC State ────────────────────────────────────────────
+let cdcFileNuevo = null;        // archivo seleccionado en el form de nuevo prospecto
+let cdcModalFile = null;        // archivo seleccionado en el modal
+let cdcModalProspectoId = null; // id del prospecto en el modal
+
+// ─── CDC — Helpers compartidos ───────────────────────────
+function cdcValidarArchivo(file) {
+  if (!file) return null;
+  const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+  if (!allowed.includes(file.type)) { toast('Solo PDF, JPG o PNG', 'error'); return null; }
+  if (file.size > 10 * 1024 * 1024) { toast('El archivo supera 10 MB', 'error'); return null; }
+  return file;
+}
+
+function cdcAnimateProgress(barId, wrapId, duration = 1200) {
+  const bar = document.getElementById(barId);
+  const wrap = document.getElementById(wrapId);
+  if (!bar || !wrap) return;
+  wrap.style.display = 'block';
+  bar.style.width = '0';
+  let start = null;
+  function step(ts) {
+    if (!start) start = ts;
+    const pct = Math.min(((ts - start) / duration) * 90, 90); // llega a 90%, el 100 se pone al terminar
+    bar.style.width = pct + '%';
+    if (pct < 90) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+async function cdcSubirArchivo(file, prospectoId, barId, wrapId) {
+  // Ruta: cdc/{prospecto_id}/{timestamp}_{filename}
+  const ext = file.name.split('.').pop();
+  const path = `cdc/${prospectoId}/${Date.now()}.${ext}`;
+  cdcAnimateProgress(barId, wrapId);
+  const { error: upErr } = await sb.storage.from('cdc-documentos').upload(path, file, { upsert: true });
+  if (upErr) { toast('Error al subir: ' + upErr.message, 'error'); return null; }
+  // Completar barra
+  const bar = document.getElementById(barId);
+  if (bar) bar.style.width = '100%';
+  return path;
+}
+
+// ─── CDC — Form nuevo prospecto ──────────────────────────
+function cdcDragOver(e) {
+  e.preventDefault();
+  document.getElementById('cdc-dropzone')?.classList.add('drag-over');
+}
+function cdcDragLeave(e) {
+  e.preventDefault();
+  document.getElementById('cdc-dropzone')?.classList.remove('drag-over');
+}
+function cdcDrop(e) {
+  e.preventDefault();
+  document.getElementById('cdc-dropzone')?.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  cdcFileSelected(file);
+}
+function cdcFileSelected(file) {
+  const valid = cdcValidarArchivo(file);
+  if (!valid) { cdcClear(); return; }
+  cdcFileNuevo = valid;
+  document.getElementById('cdc-preview-name').textContent = file.name;
+  document.getElementById('cdc-preview').style.display = 'flex';
+  document.getElementById('cdc-dropzone').style.display = 'none';
+}
+function cdcClear() {
+  cdcFileNuevo = null;
+  document.getElementById('cdc-preview').style.display = 'none';
+  document.getElementById('cdc-dropzone').style.display = 'block';
+  document.getElementById('cdc-input').value = '';
+  const bar = document.getElementById('cdc-progress-bar');
+  const wrap = document.getElementById('cdc-progress-wrap');
+  if (bar) bar.style.width = '0';
+  if (wrap) wrap.style.display = 'none';
+}
+
+// ─── CDC — Modal (subir después) ─────────────────────────
+function abrirSubirCDC(prospectoId, nombre, tieneCDC) {
+  cdcModalProspectoId = prospectoId;
+  cdcModalFile = null;
+  document.getElementById('modal-cdc-nombre').textContent = nombre + (tieneCDC ? ' — Reemplazará el CDC existente' : '');
+  document.getElementById('modal-cdc-preview').style.display = 'none';
+  document.getElementById('modal-cdc-dropzone').style.display = 'block';
+  document.getElementById('modal-cdc-input').value = '';
+  document.getElementById('modal-cdc-btn').disabled = true;
+  const bar = document.getElementById('modal-cdc-progress-bar');
+  const wrap = document.getElementById('modal-cdc-progress-wrap');
+  if (bar) bar.style.width = '0';
+  if (wrap) wrap.style.display = 'none';
+  abrirModal('modal-cdc');
+}
+function cdcDragOver(e) { e.preventDefault(); e.currentTarget?.classList.add('drag-over'); }
+function cdcDragLeave(e) { e.preventDefault(); e.currentTarget?.classList.remove('drag-over'); }
+function cdcDropModal(e) {
+  e.preventDefault();
+  e.currentTarget?.classList.remove('drag-over');
+  cdcFileSelectedModal(e.dataTransfer.files[0]);
+}
+function cdcFileSelectedModal(file) {
+  const valid = cdcValidarArchivo(file);
+  if (!valid) { cdcClearModal(); return; }
+  cdcModalFile = valid;
+  document.getElementById('modal-cdc-preview-name').textContent = file.name;
+  document.getElementById('modal-cdc-preview').style.display = 'flex';
+  document.getElementById('modal-cdc-dropzone').style.display = 'none';
+  document.getElementById('modal-cdc-btn').disabled = false;
+}
+function cdcClearModal() {
+  cdcModalFile = null;
+  document.getElementById('modal-cdc-preview').style.display = 'none';
+  document.getElementById('modal-cdc-dropzone').style.display = 'block';
+  document.getElementById('modal-cdc-input').value = '';
+  document.getElementById('modal-cdc-btn').disabled = true;
+}
+async function subirCDCModal() {
+  if (!cdcModalFile || !cdcModalProspectoId) return;
+  const btn = document.getElementById('modal-cdc-btn');
+  btn.disabled = true;
+  btn.textContent = 'Subiendo…';
+  const path = await cdcSubirArchivo(cdcModalFile, cdcModalProspectoId, 'modal-cdc-progress-bar', 'modal-cdc-progress-wrap');
+  if (path) {
+    await sb.from('prospectos').update({
+      cdc_path: path,
+      cdc_nombre: cdcModalFile.name,
+      cdc_subido_at: new Date().toISOString()
+    }).eq('id', cdcModalProspectoId);
+    toast('CDC guardado correctamente', 'success');
+    cerrarModal('modal-cdc');
+    cargarProspectos();
+  }
+  btn.disabled = false;
+  btn.textContent = 'Subir CDC';
+}
 
 // ─── Init ─────────────────────────────────────────────────
 (async () => {
@@ -566,20 +802,26 @@ async function cargarProspectos() {
 function renderTablaProspectos(data) {
   const tbody = document.getElementById('tabla-prospectos');
   if (!data.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Sin prospectos registrados</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Sin prospectos registrados</td></tr>';
     return;
   }
   tbody.innerHTML = data.map(p => `
     <tr>
       <td><strong>${p.nombre_completo}</strong></td>
-      <td><span style="font-family:'DM Mono',monospace;font-size:12px">${p.curp || '—'}</span></td>
-      <td><span style="font-family:'DM Mono',monospace;font-weight:700">${p.score_ipp ?? '—'}</span></td>
+      <td><span style="font-family:'IBM Plex Mono',monospace;font-size:12px">${p.curp || '—'}</span></td>
+      <td><span style="font-family:'IBM Plex Mono',monospace;font-weight:700">${p.score_ipp ?? '—'}</span></td>
       <td>${badgeGrado(p.grado_ipp)}</td>
       <td>${p.grado_postburo ? badgeGrado(p.grado_postburo) : '<span style="color:var(--muted);font-size:12px">Pendiente</span>'}</td>
+      <td>${p.cdc_path
+        ? `<span class="cdc-badge tiene">📄 CDC</span>`
+        : `<span class="cdc-badge falta">Sin CDC</span>`}</td>
       <td>${estatusBadge(p.estatus)}</td>
       <td>
         <div class="row">
           <button class="btn btn-secondary btn-sm" onclick="verProspecto('${p.id}')">Ver</button>
+          <button class="btn btn-secondary btn-sm" onclick="abrirSubirCDC('${p.id}', '${p.nombre_completo}', ${!!p.cdc_path})">
+            ${p.cdc_path ? '🔄 CDC' : '📤 CDC'}
+          </button>
           ${p.estatus === 'prospecto' && p.grado_ipp !== 'D'
             ? `<button class="btn btn-secondary btn-sm" onclick="irPostBuro('${p.id}')">Post-buró</button>`
             : ''}
@@ -616,15 +858,15 @@ async function verProspecto(id) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
       <div>
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">CURP</div>
-        <div style="font-family:'DM Mono',monospace">${p.curp || '—'}</div>
+        <div style="font-family:'IBM Plex Mono',monospace">${p.curp || '—'}</div>
       </div>
       <div>
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Teléfono</div>
-        <div style="font-family:'DM Mono',monospace">${p.telefono || '—'}</div>
+        <div style="font-family:'IBM Plex Mono',monospace">${p.telefono || '—'}</div>
       </div>
       <div>
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Score IPP</div>
-        <div style="font-size:32px;font-weight:800;font-family:'DM Mono',monospace">${p.score_ipp}</div>
+        <div style="font-size:32px;font-weight:800;font-family:'IBM Plex Mono',monospace">${p.score_ipp}</div>
       </div>
       <div>
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Grado</div>
@@ -651,11 +893,27 @@ async function verProspecto(id) {
         ${badgeGrado(p.grado_postburo)}
         <span style="margin-left:8px">${estatusBadge(p.estatus)}</span>
       </div>
-      ${p.reglas_postburo ? `<div style="margin-top:8px;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted)">
+      ${p.reglas_postburo ? `<div style="margin-top:8px;font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--muted)">
         ${JSON.parse(p.reglas_postburo||'[]').map(r => `<div>• ${r}</div>`).join('')}
       </div>` : ''}
     ` : ''}
-    <div style="margin-top:20px">
+    <div class="divider"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Documento CDC</div>
+        ${p.cdc_path
+          ? `<div style="display:flex;align-items:center;gap:10px">
+               <span class="cdc-badge tiene">📄 Subido</span>
+               <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">${p.cdc_nombre || ''}</span>
+               <a href="#" onclick="descargarCDC('${p.cdc_path}','${p.cdc_nombre||'cdc'}');return false;" style="font-size:12px;color:var(--brand)">Descargar</a>
+             </div>`
+          : `<span class="cdc-badge falta">Sin CDC</span>`}
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="cerrarModal('modal-prospecto');abrirSubirCDC('${p.id}','${p.nombre_completo}',${!!p.cdc_path})">
+        ${p.cdc_path ? '🔄 Reemplazar CDC' : '📤 Subir CDC'}
+      </button>
+    </div>
+    <div style="margin-top:16px">
       <button class="btn btn-danger btn-sm" onclick="rechazarProspecto('${p.id}')">Rechazar prospecto</button>
     </div>
   `;
@@ -673,7 +931,7 @@ function calcularScore() {
   document.getElementById('grado-badge').innerHTML = badgeGrado(grado);
 
   const fill = document.getElementById('score-fill');
-  const colores = { A: '#2ed573', B: '#7c6af7', C: '#ffa502', D: '#ff4757' };
+  const colores = { A: 'var(--green)', B: 'var(--purple)', C: 'var(--yellow-chip)', D: 'var(--red)' };
   fill.style.width = score + '%';
   fill.style.background = colores[grado];
 
@@ -749,11 +1007,29 @@ async function guardarProspecto() {
   btn.disabled = true;
   btn.textContent = 'Guardando…';
 
-  const { error } = await sb.from('prospectos').insert(payload);
+  const { data: inserted, error } = await sb.from('prospectos').insert(payload).select('id').single();
   btn.disabled = false;
   btn.textContent = 'Guardar prospecto';
 
   if (error) { toast('Error al guardar: ' + error.message, 'error'); return; }
+
+  // Si hay archivo CDC seleccionado, subirlo y asociar al prospecto recién creado
+  if (cdcFileNuevo && inserted?.id) {
+    btn.disabled = true;
+    btn.textContent = 'Subiendo CDC…';
+    const cdcPath = await cdcSubirArchivo(cdcFileNuevo, inserted.id, 'cdc-progress-bar', 'cdc-progress-wrap');
+    if (cdcPath) {
+      await sb.from('prospectos').update({
+        cdc_path: cdcPath,
+        cdc_nombre: cdcFileNuevo.name,
+        cdc_subido_at: new Date().toISOString()
+      }).eq('id', inserted.id);
+    }
+    cdcClear();
+    btn.disabled = false;
+    btn.textContent = 'Guardar prospecto';
+  }
+
   toast(`Prospecto guardado. Score: ${score} — Grado ${grado}`);
   cargarProspectos();
   showView('prospectos');
@@ -791,9 +1067,9 @@ async function cargarResumenPB(id) {
     <div style="display:flex;gap:20px;align-items:center">
       <div>
         <div style="font-size:18px;font-weight:700">${p.nombre_completo}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${p.curp}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted)">${p.curp}</div>
       </div>
-      <div>Score: <strong style="font-size:24px;font-family:'DM Mono',monospace">${p.score_ipp}</strong></div>
+      <div>Score: <strong style="font-size:24px;font-family:'IBM Plex Mono',monospace">${p.score_ipp}</strong></div>
       <div>${badgeGrado(p.grado_ipp)}</div>
     </div>
   `;
@@ -854,7 +1130,7 @@ function renderCuentas() {
         ✕ Eliminar cuenta
       </button>
     </div>
-  `).join('') || '<div style="color:var(--muted);font-family:DM Mono,monospace;font-size:12px;padding:12px 0">Sin cuentas ingresadas</div>';
+  `).join('') || '<div style="color:var(--muted);font-family:IBM Plex Mono,monospace;font-size:12px;padding:12px 0">Sin cuentas ingresadas</div>';
 }
 
 function evaluarPostBuroUI() {
@@ -888,7 +1164,7 @@ function evaluarPostBuroUI() {
         ${resultado.reglasActivadas.map(r => `
           <div class="alert ${resultado.rechazado ? 'alert-danger' : 'alert-warn'}" style="margin-bottom:8px;padding:10px 14px">
             <span class="alert-icon">${resultado.rechazado ? '🚫' : '⚠️'}</span>
-            <span style="font-family:'DM Mono',monospace;font-size:12px">${r}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px">${r}</span>
           </div>
         `).join('')}
       </div>
@@ -935,7 +1211,7 @@ async function cargarGrupos() {
     return `
       <tr>
         <td><strong>${g.nombre}</strong></td>
-        <td><span style="font-family:'DM Mono',monospace">${g.num_integrantes || 0}</span></td>
+        <td><span style="font-family:'IBM Plex Mono',monospace">${g.num_integrantes || 0}</span></td>
         <td>${asig?.profiles?.email || '<span style="color:var(--muted)">Sin asignar</span>'}</td>
         <td>${estatusBadge(g.estatus || 'formado')}</td>
         <td>
@@ -1026,6 +1302,16 @@ async function cambiarEstatusGrupo(id, estatus) {
   await sb.from('grupos').update({ estatus }).eq('id', id);
   toast(`Grupo → ${estatus}`);
   cargarGrupos();
+}
+
+async function descargarCDC(path, nombre) {
+  const { data, error } = await sb.storage.from('cdc-documentos').createSignedUrl(path, 60);
+  if (error || !data?.signedUrl) { toast('No se pudo generar el link', 'error'); return; }
+  const a = document.createElement('a');
+  a.href = data.signedUrl;
+  a.download = nombre || 'cdc';
+  a.target = '_blank';
+  a.click();
 }
 
 async function rechazarProspecto(id) {

@@ -26,13 +26,19 @@
   <nav class="sidebar">
     <div class="nav-section">
       <div class="nav-label">Dashboard</div>
-      <a class="nav-item active" href="#">
+      <a class="nav-item active" id="nav-resumen" onclick="switchView('resumen')" href="#">
         <span class="nav-icon">📊</span> Resumen ejecutivo
+      </a>
+      <a class="nav-item" id="nav-variables" onclick="switchView('variables')" href="#">
+        <span class="nav-icon">⚖️</span> Variables IPP
       </a>
     </div>
   </nav>
 
   <main class="main">
+
+    <!-- ═══ VISTA: RESUMEN EJECUTIVO ═══ -->
+    <div id="view-resumen">
     <div class="page-header flex-between">
       <div>
         <div class="page-title">Resumen ejecutivo</div>
@@ -111,6 +117,75 @@
       </div>
     </div>
 
+    </div><!-- /view-resumen -->
+
+    <!-- ═══ VISTA: VARIABLES IPP ═══ -->
+    <div id="view-variables" style="display:none">
+      <div class="page-header flex-between">
+        <div>
+          <div class="page-title">Variables y ponderaciones IPP</div>
+          <div class="page-sub">Configuración activa del instrumento de evaluación</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="cargarVariables()">🔄 Actualizar</button>
+      </div>
+
+      <!-- Tabs individual / grupal -->
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <button class="btn btn-sm" id="tab-individual"
+          onclick="switchTab('individual')"
+          style="background:var(--brand);color:#fff;border:none">
+          Evaluación individual
+        </button>
+        <button class="btn btn-secondary btn-sm" id="tab-grupal"
+          onclick="switchTab('grupal')">
+          Evaluación grupal
+        </button>
+      </div>
+
+      <!-- Panel individual -->
+      <div id="panel-individual">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-title" style="margin-bottom:16px">
+            ⚖️ Variables evaluación individual (IPP pre-buró)
+            <span id="ind-resumen-pesos" style="font-size:11px;font-weight:400;color:var(--muted);margin-left:8px"></span>
+          </div>
+          <div id="tabla-individual-wrap">
+            <div style="text-align:center;padding:40px;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:12px">
+              Cargando variables…
+            </div>
+          </div>
+        </div>
+        <!-- KPI resumen pesos individuales -->
+        <div class="stats-grid" id="kpis-individual" style="margin-bottom:20px"></div>
+        <!-- Barra por dimensión -->
+        <div class="card">
+          <div class="card-title">Distribución de peso por dimensión</div>
+          <div id="dim-bars-individual" style="padding:8px 0"></div>
+        </div>
+      </div>
+
+      <!-- Panel grupal -->
+      <div id="panel-grupal" style="display:none">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-title" style="margin-bottom:16px">
+            👥 Variables evaluación grupal (CE en campo)
+            <span id="gru-resumen-pesos" style="font-size:11px;font-weight:400;color:var(--muted);margin-left:8px"></span>
+          </div>
+          <div id="tabla-grupal-wrap">
+            <div style="text-align:center;padding:40px;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:12px">
+              Cargando variables…
+            </div>
+          </div>
+        </div>
+        <div class="stats-grid" id="kpis-grupal" style="margin-bottom:20px"></div>
+        <div class="card">
+          <div class="card-title">Distribución de peso por dimensión</div>
+          <div id="dim-bars-grupal" style="padding:8px 0"></div>
+        </div>
+      </div>
+
+    </div><!-- /view-variables -->
+
   </main>
 </div>
 
@@ -184,18 +259,18 @@ async function cargarDatos() {
 
 function renderFunnel(total, preBuro, postBuro, aceptCE, gruposF) {
   const steps = [
-    { label: 'Prospectos captados', n: total, color: '#7c6af7' },
-    { label: 'Aprobados pre-buró (A/B/C)', n: preBuro, color: '#1e90ff' },
-    { label: 'Aprobados post-buró', n: postBuro, color: '#ffa502' },
-    { label: 'Aceptados por CE', n: aceptCE, color: '#2ed573' },
-    { label: 'Grupos formados', n: gruposF, color: '#e8ff47' },
+    { label: 'Prospectos captados', n: total, color: 'var(--purple)' },
+    { label: 'Aprobados pre-buró (A/B/C)', n: preBuro, color: 'var(--blue)' },
+    { label: 'Aprobados post-buró', n: postBuro, color: 'var(--yellow-chip)' },
+    { label: 'Aceptados por CE', n: aceptCE, color: 'var(--green)' },
+    { label: 'Grupos formados', n: gruposF, color: 'var(--brand)' },
   ];
   const max = total || 1;
   document.getElementById('funnel').innerHTML = steps.map(s => `
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
         <span style="font-size:12px;color:var(--muted)">${s.label}</span>
-        <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${s.n}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600">${s.n}</span>
       </div>
       <div style="background:var(--border2);border-radius:4px;height:8px;overflow:hidden">
         <div style="height:100%;width:${(s.n/max)*100}%;background:${s.color};border-radius:4px;transition:width 0.6s ease"></div>
@@ -216,8 +291,8 @@ function renderChartGrados(prospectos) {
       labels: ['Grado A', 'Grado B', 'Grado C', 'Grado D'],
       datasets: [{
         data: [counts.A, counts.B, counts.C, counts.D],
-        backgroundColor: ['#2ed573', '#7c6af7', '#ffa502', '#ff4757'],
-        borderColor: '#13131a',
+        backgroundColor: ['var(--green)', 'var(--purple)', 'var(--yellow-chip)', 'var(--red)'],
+        borderColor: 'var(--surface)',
         borderWidth: 3
       }]
     },
@@ -225,7 +300,7 @@ function renderChartGrados(prospectos) {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { color: '#9090a8', font: { family: 'DM Mono', size: 11 }, padding: 12 }
+          labels: { color: 'var(--muted2)', font: { family: 'IBM Plex Mono', size: 11 }, padding: 12 }
         }
       },
       cutout: '60%'
@@ -258,16 +333,16 @@ function renderChartCE(grupos, integrantes) {
         {
           label: 'Aprobados',
           data: labels.map(k => cemap[k].aprobados),
-          backgroundColor: 'rgba(46,213,115,0.6)',
-          borderColor: '#2ed573',
+          backgroundColor: 'rgba(46,125,50,0.6)',
+          borderColor: 'var(--green)',
           borderWidth: 1,
           borderRadius: 4
         },
         {
           label: 'Rechazados',
           data: labels.map(k => cemap[k].rechazados),
-          backgroundColor: 'rgba(255,71,87,0.6)',
-          borderColor: '#ff4757',
+          backgroundColor: 'rgba(183,28,28,0.6)',
+          borderColor: 'var(--red)',
           borderWidth: 1,
           borderRadius: 4
         }
@@ -275,11 +350,11 @@ function renderChartCE(grupos, integrantes) {
     },
     options: {
       scales: {
-        x: { ticks: { color: '#6b6b80', font: { family: 'DM Mono', size: 11 } }, grid: { color: '#1e1e2e' } },
-        y: { ticks: { color: '#6b6b80', stepSize: 1, font: { family: 'DM Mono', size: 11 } }, grid: { color: '#1e1e2e' } }
+        x: { ticks: { color: 'var(--muted)', font: { family: 'IBM Plex Mono', size: 11 } }, grid: { color: 'var(--border)' } },
+        y: { ticks: { color: 'var(--muted)', stepSize: 1, font: { family: 'IBM Plex Mono', size: 11 } }, grid: { color: 'var(--border)' } }
       },
       plugins: {
-        legend: { labels: { color: '#9090a8', font: { family: 'DM Mono', size: 11 } } }
+        legend: { labels: { color: 'var(--muted2)', font: { family: 'IBM Plex Mono', size: 11 } } }
       }
     }
   });
@@ -298,7 +373,7 @@ function renderMotivos(integrantes, grupos) {
 
   if (!todos.length) {
     document.getElementById('motivos-rechazo-list').innerHTML =
-      '<div style="color:var(--muted);font-family:DM Mono,monospace;font-size:12px;padding:12px 0">Sin rechazos registrados</div>';
+      '<div style="color:var(--muted);font-family:IBM Plex Mono,monospace;font-size:12px;padding:12px 0">Sin rechazos registrados</div>';
     return;
   }
 
@@ -308,6 +383,396 @@ function renderMotivos(integrantes, grupos) {
       ${m.substring(0, 80)}${m.length > 80 ? '…' : ''}
     </div>
   `).join('');
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  VARIABLES IPP — sección de ponderaciones
+//  Tablas: variables_ipp, prospectos, evaluaciones_grupales
+// ═══════════════════════════════════════════════════════════
+
+// ── Vista / navegación ────────────────────────────────────
+function switchView(v) {
+  document.getElementById('view-resumen').style.display   = v === 'resumen'   ? '' : 'none';
+  document.getElementById('view-variables').style.display = v === 'variables' ? '' : 'none';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(`nav-${v}`).classList.add('active');
+  if (v === 'variables') cargarVariables();
+}
+
+function switchTab(t) {
+  document.getElementById('panel-individual').style.display = t === 'individual' ? '' : 'none';
+  document.getElementById('panel-grupal').style.display     = t === 'grupal'     ? '' : 'none';
+  document.getElementById('tab-individual').className =
+    t === 'individual' ? 'btn btn-sm' : 'btn btn-secondary btn-sm';
+  document.getElementById('tab-individual').style.cssText =
+    t === 'individual' ? 'background:var(--brand);color:#fff;border:none' : '';
+  document.getElementById('tab-grupal').className =
+    t === 'grupal' ? 'btn btn-sm' : 'btn btn-secondary btn-sm';
+  document.getElementById('tab-grupal').style.cssText =
+    t === 'grupal' ? 'background:var(--brand);color:#fff;border:none' : '';
+}
+
+// ── Carga principal ───────────────────────────────────────
+async function cargarVariables() {
+  // Tres consultas en paralelo
+  const [
+    { data: vars },
+    { data: prospectos },
+    { data: evaluaciones }
+  ] = await Promise.all([
+    sb.from('variables_ipp').select('*').order('dimension').order('peso_max', { ascending: false }),
+    sb.from('prospectos').select('score_ipp, grado_ipp, antiguedad_domicilio, tipo_domicilio, coincidencia_ine, antiguedad_negocio, ubicacion_negocio, exp_grupal, otros_creditos, es_referida, ingresos_semanales, gastos_semanales, capacidad_pago').eq('estatus', 'prospecto').neq('grado_ipp', 'D').limit(500),
+    sb.from('evaluaciones_grupales').select('respuestas_ce, score_ce, group_red_flag, nivel_revision').limit(200)
+  ]);
+
+  if (!vars) return;
+
+  const varsInd  = vars.filter(v => v.tipo === 'individual');
+  const varsGru  = vars.filter(v => v.tipo === 'grupal');
+
+  renderTablaIndividual(varsInd, prospectos || []);
+  renderTablaGrupal(varsGru, evaluaciones || []);
+}
+
+// ────────────────────────────────────────────────────────
+//  INDIVIDUAL
+// ────────────────────────────────────────────────────────
+function renderTablaIndividual(vars, prospectos) {
+  const activas   = vars.filter(v => v.activa);
+  const pesoTotal = activas.reduce((s, v) => s + v.peso_max, 0);
+  const avgScore  = prospectos.length
+    ? prospectos.reduce((s, p) => s + (p.score_ipp || 0), 0) / prospectos.length
+    : null;
+
+  // Puntaje acumulado = contribución proporcional de cada variable al score promedio real
+  // Formula: (peso_var / pesoTotal) * avgScore
+  // Cuando no hay prospectos, mostramos el peso relativo máximo teórico
+
+  // KPIs resumen
+  document.getElementById('ind-resumen-pesos').textContent =
+    `${activas.length} activas · Peso total: ${pesoTotal} pts`;
+
+  document.getElementById('kpis-individual').innerHTML = [
+    { label: 'Variables activas',   val: activas.length,           color: 'green'  },
+    { label: 'Variables inactivas', val: vars.filter(v=>!v.activa).length, color: 'warn' },
+    { label: 'Peso máximo total',   val: `${pesoTotal} pts`,       color: 'accent' },
+    { label: 'Score promedio real', val: avgScore != null ? Math.round(avgScore) : '—', color: 'purple' },
+  ].map(k => `
+    <div class="stat-card ${k.color}">
+      <div class="stat-value">${k.val}</div>
+      <div class="stat-label">${k.label}</div>
+    </div>
+  `).join('');
+
+  // Tabla
+  const agrupadoPorDim = {};
+  vars.forEach(v => {
+    if (!agrupadoPorDim[v.dimension]) agrupadoPorDim[v.dimension] = [];
+    agrupadoPorDim[v.dimension].push(v);
+  });
+
+  const dimColors = {
+    'Estabilidad Residencial': 'var(--blue)',
+    'Actividad Económica':     'var(--green)',
+    'Capacidad Financiera':    'var(--purple)',
+    'Experiencia Crediticia':  'var(--yellow-chip)',
+  };
+
+  let tbodyHTML = '';
+  Object.entries(agrupadoPorDim).forEach(([dim, dimVars]) => {
+    const dimPeso = dimVars.filter(v => v.activa).reduce((s,v) => s + v.peso_max, 0);
+    const dimColor = dimColors[dim] || 'var(--muted2)';
+    tbodyHTML += `
+      <tr style="background:var(--surface2)">
+        <td colspan="5" style="font-size:11px;font-weight:700;letter-spacing:0.08em;
+          text-transform:uppercase;color:${dimColor};padding:10px 12px">
+          ${dim}
+          <span style="font-weight:400;font-family:'IBM Plex Mono',monospace;
+            font-size:10px;color:var(--muted);margin-left:8px">
+            ${dimPeso} pts activos
+          </span>
+        </td>
+      </tr>
+    `;
+    dimVars.forEach(v => {
+      const pctPeso = pesoTotal > 0 ? ((v.peso_max / pesoTotal) * 100).toFixed(1) : 0;
+      const puntAcum = (avgScore != null && v.activa)
+        ? ((v.peso_max / pesoTotal) * avgScore).toFixed(1)
+        : '—';
+      const activaBadge = v.activa
+        ? `<span class="badge-estatus estatus-prospecto" style="font-size:10px">Activa</span>`
+        : `<span class="badge-estatus estatus-rechazado_ipp" style="font-size:10px">Inactiva</span>`;
+      tbodyHTML += `
+        <tr style="${!v.activa ? 'opacity:0.45' : ''}">
+          <td>
+            <div style="font-weight:600;font-size:13px">${v.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${v.descripcion || ''}</div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px">
+                ${v.peso_max}
+              </span>
+              <div style="flex:1;max-width:80px">
+                <div style="height:6px;background:var(--border2);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:${pctPeso}%;background:${v.activa ? dimColor : 'var(--muted2)'};
+                    border-radius:3px"></div>
+                </div>
+                <div style="font-size:9px;color:var(--muted);margin-top:2px;
+                  font-family:'IBM Plex Mono',monospace">${pctPeso}%</div>
+              </div>
+            </div>
+          </td>
+          <td>${activaBadge}</td>
+          <td>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;
+              color:${v.activa && avgScore != null ? 'var(--green)' : 'var(--muted2)'}">
+              ${puntAcum}
+            </span>
+            ${avgScore != null && v.activa
+              ? `<div style="font-size:9px;color:var(--muted)">de ${Math.round(avgScore)} avg</div>`
+              : ''}
+          </td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;
+            color:var(--muted)">${v.id}</td>
+        </tr>
+      `;
+    });
+  });
+
+  document.getElementById('tabla-individual-wrap').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Peso (pts)</th>
+            <th>Estado</th>
+            <th>Puntaje acumulado</th>
+            <th>ID</th>
+          </tr>
+        </thead>
+        <tbody>${tbodyHTML}</tbody>
+      </table>
+    </div>
+    ${avgScore == null ? `
+      <div style="font-size:11px;color:var(--muted);font-style:italic;margin-top:10px;padding:0 4px">
+        * Puntaje acumulado requiere prospectos con score registrado.
+        Muestra el aporte proporcional de cada variable al score promedio del conjunto activo.
+      </div>` : `
+      <div style="font-size:11px;color:var(--muted);font-style:italic;margin-top:10px;padding:0 4px">
+        Puntaje acumulado = (peso_variable / peso_total_activo) × score_promedio_real (${Math.round(avgScore)} pts).
+        Basado en ${prospectos.length} prospectos activos.
+      </div>`}
+  `;
+
+  // Barras por dimensión
+  renderDimBars('dim-bars-individual', agrupadoPorDim, pesoTotal, dimColors, false);
+}
+
+// ────────────────────────────────────────────────────────
+//  GRUPAL
+// ────────────────────────────────────────────────────────
+function renderTablaGrupal(vars, evaluaciones) {
+  const activas   = vars.filter(v => v.activa);
+  const pesoTotal = activas.reduce((s, v) => s + v.peso_max, 0);
+
+  // Calcular impacto real desde evaluaciones existentes
+  // respuestas_ce es JSONB con claves V1..V10, cada una con {val_raw: 'si'|'par'|'no'|'na'}
+  const countPorVar = {}; // { V1: { si:0, par:0, no:0, na:0, total:0 } }
+  activas.forEach(v => { countPorVar[v.id] = { si:0, par:0, no:0, na:0, total:0 }; });
+
+  evaluaciones.forEach(ev => {
+    if (!ev.respuestas_ce) return;
+    const resp = typeof ev.respuestas_ce === 'string'
+      ? JSON.parse(ev.respuestas_ce) : ev.respuestas_ce;
+    Object.entries(resp).forEach(([varId, data]) => {
+      if (!countPorVar[varId]) return;
+      const raw = data?.val_raw;
+      if (raw) {
+        countPorVar[varId][raw] = (countPorVar[varId][raw] || 0) + 1;
+        countPorVar[varId].total++;
+      }
+    });
+  });
+
+  const hayEvaluaciones = evaluaciones.length > 0;
+
+  // KPIs
+  const avgScoreCE = hayEvaluaciones
+    ? evaluaciones.filter(e => e.score_ce != null)
+        .reduce((s,e,_,a) => s + e.score_ce/a.length, 0)
+    : null;
+
+  document.getElementById('gru-resumen-pesos').textContent =
+    `${activas.length} activas · Peso total: ${pesoTotal} pts`;
+
+  document.getElementById('kpis-grupal').innerHTML = [
+    { label: 'Variables activas',   val: activas.length,                    color: 'green'  },
+    { label: 'Evaluaciones CE',      val: evaluaciones.length,              color: 'accent' },
+    { label: 'Peso máximo total',    val: `${pesoTotal} pts`,               color: 'purple' },
+    { label: 'Score CE promedio',    val: avgScoreCE != null ? Math.round(avgScoreCE) : '—', color: 'warn' },
+  ].map(k => `
+    <div class="stat-card ${k.color}">
+      <div class="stat-value">${k.val}</div>
+      <div class="stat-label">${k.label}</div>
+    </div>
+  `).join('');
+
+  const dimColors = {
+    'Arranque':       'var(--blue)',
+    'Ubicabilidad':   'var(--green)',
+    'Verificación':   'var(--red)',
+    'Producto':       'var(--purple)',
+  };
+
+  const agrupadoPorDim = {};
+  vars.forEach(v => {
+    if (!agrupadoPorDim[v.dimension]) agrupadoPorDim[v.dimension] = [];
+    agrupadoPorDim[v.dimension].push(v);
+  });
+
+  let tbodyHTML = '';
+  Object.entries(agrupadoPorDim).forEach(([dim, dimVars]) => {
+    const dimPeso  = dimVars.filter(v => v.activa).reduce((s,v) => s + v.peso_max, 0);
+    const dimColor = dimColors[dim] || 'var(--muted2)';
+    tbodyHTML += `
+      <tr style="background:var(--surface2)">
+        <td colspan="5" style="font-size:11px;font-weight:700;letter-spacing:0.08em;
+          text-transform:uppercase;color:${dimColor};padding:10px 12px">
+          ${dim}
+          <span style="font-weight:400;font-family:'IBM Plex Mono',monospace;
+            font-size:10px;color:var(--muted);margin-left:8px">
+            ${dimPeso} pts
+          </span>
+        </td>
+      </tr>
+    `;
+    dimVars.forEach(v => {
+      const cnt   = countPorVar[v.id] || {};
+      const total = cnt.total || 0;
+      const pctPeso = pesoTotal > 0 ? ((v.peso_max / pesoTotal) * 100).toFixed(1) : 0;
+
+      // Impacto en score = contribución ponderada promedio según respuestas reales
+      // n(si)*1 + n(par)*0.5 + n(no)*0  / total  * peso_var / pesoTotal * 100
+      let impactoHTML = '—';
+      let impactoColor = 'var(--muted2)';
+      if (hayEvaluaciones && total > 0 && v.activa) {
+        const ratioSi  = ((cnt.si || 0) + (cnt.par || 0) * 0.5) / total;
+        const impacto  = (ratioSi * v.peso_max / pesoTotal * 100).toFixed(1);
+        const pctSi    = Math.round(((cnt.si || 0) / total) * 100);
+        const pctPar   = Math.round(((cnt.par || 0) / total) * 100);
+        const pctNo    = Math.round(((cnt.no || 0) / total) * 100);
+        impactoColor   = pctNo > 40 ? 'var(--red)' : pctSi > 70 ? 'var(--green)' : 'var(--yellow-chip)';
+        impactoHTML = `
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;
+            color:${impactoColor}">${impacto} pts</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">
+            ✅ ${pctSi}% · ⚠️ ${pctPar}% · 🚩 ${pctNo}%
+          </div>
+        `;
+      } else if (v.activa) {
+        const maxImpacto = (v.peso_max / pesoTotal * 100).toFixed(1);
+        impactoHTML = `
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;
+            color:var(--muted)">≤ ${maxImpacto} pts</span>
+          <div style="font-size:9px;color:var(--muted);margin-top:1px">sin datos aún</div>
+        `;
+      }
+
+      const activaBadge = v.activa
+        ? `<span class="badge-estatus estatus-prospecto" style="font-size:10px">Activa</span>`
+        : `<span class="badge-estatus estatus-rechazado_ipp" style="font-size:10px">Inactiva</span>`;
+
+      tbodyHTML += `
+        <tr style="${!v.activa ? 'opacity:0.45' : ''}">
+          <td>
+            <div style="font-weight:600;font-size:13px">${v.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${v.descripcion || ''}</div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px">
+                ${v.peso_max}
+              </span>
+              <div style="flex:1;max-width:80px">
+                <div style="height:6px;background:var(--border2);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:${pctPeso}%;background:${v.activa ? dimColor : 'var(--muted2)'};
+                    border-radius:3px"></div>
+                </div>
+                <div style="font-size:9px;color:var(--muted);margin-top:2px;
+                  font-family:'IBM Plex Mono',monospace">${pctPeso}%</div>
+              </div>
+            </div>
+          </td>
+          <td>${activaBadge}</td>
+          <td>${impactoHTML}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;
+            color:var(--muted)">${v.id}</td>
+        </tr>
+      `;
+    });
+  });
+
+  document.getElementById('tabla-grupal-wrap').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Peso (pts)</th>
+            <th>Estado</th>
+            <th>Impacto en score actual</th>
+            <th>ID</th>
+          </tr>
+        </thead>
+        <tbody>${tbodyHTML}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--muted);font-style:italic;margin-top:10px;padding:0 4px">
+      ${hayEvaluaciones
+        ? `Impacto calculado sobre ${evaluaciones.length} evaluaciones CE registradas. 
+           Fórmula: (peso_var / peso_total) × tasa_ponderada_respuestas × 100.`
+        : `Sin evaluaciones CE registradas. Se muestra el impacto máximo teórico por variable.`}
+    </div>
+  `;
+
+  renderDimBars('dim-bars-grupal', agrupadoPorDim, pesoTotal, dimColors, hayEvaluaciones);
+}
+
+// ────────────────────────────────────────────────────────
+//  Barras por dimensión (compartido)
+// ────────────────────────────────────────────────────────
+function renderDimBars(containerId, agrupadoPorDim, pesoTotal, dimColors, tieneData) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const dims = Object.entries(agrupadoPorDim).map(([dim, dimVars]) => {
+    const pesoActivo = dimVars.filter(v => v.activa).reduce((s,v) => s + v.peso_max, 0);
+    return { dim, pesoActivo, color: dimColors[dim] || 'var(--muted2)' };
+  }).sort((a,b) => b.pesoActivo - a.pesoActivo);
+
+  const maxPeso = dims[0]?.pesoActivo || 1;
+
+  container.innerHTML = dims.map(d => {
+    const pct    = ((d.pesoActivo / pesoTotal) * 100).toFixed(1);
+    const barPct = ((d.pesoActivo / maxPeso) * 100).toFixed(0);
+    return `
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:500">${d.dim}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700">
+            ${d.pesoActivo} pts <span style="font-weight:400;color:var(--muted)">(${pct}%)</span>
+          </span>
+        </div>
+        <div style="background:var(--border2);border-radius:4px;height:10px;overflow:hidden">
+          <div style="height:100%;width:${barPct}%;background:${d.color};
+            border-radius:4px;transition:width 0.6s ease"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderTablaGrupos(grupos) {
@@ -321,7 +786,7 @@ function renderTablaGrupos(grupos) {
       <td><strong>${g.nombre}</strong></td>
       <td>${g.num_integrantes || 0}</td>
       <td>${g.score_grupal != null
-        ? `<span style="font-family:'DM Mono',monospace;font-weight:700">${g.score_grupal}</span>`
+        ? `<span style="font-family:'IBM Plex Mono',monospace;font-weight:700">${g.score_grupal}</span>`
         : '—'}</td>
       <td>${g.grado_grupal ? badgeGrado(g.grado_grupal) : '—'}</td>
       <td>${g.asignaciones_ce?.[0]?.profiles?.email?.split('@')[0] || '—'}</td>

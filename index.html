@@ -5,35 +5,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>IPP — Acceso</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root { --bg:#0a0a0f;--surface:#13131a;--border:#1e1e2e;--accent:#e8ff47;--accent2:#7c6af7;--text:#f0f0f5;--muted:#6b6b80;--danger:#ff4757; }
+    :root {
+      --brand:#2E7D32; --brand-light:#E8F5E9; --brand-dark:#1B5E20;
+      --bg:#EEF0F5; --surface:#FFFFFF; --surface2:#F5F7FA;
+      --border:#E0E3EB; --border2:#C8CDD8;
+      --text:#1A1D23; --text-2:#3D4350;
+      --muted:#6B7280; --red:#B71C1C; --red-bg:#FFEBEE; --red-chip:#EF9A9A;
+    }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
-    .bg-grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(232,255,71,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,71,.03) 1px,transparent 1px);background-size:48px 48px}
-    .blob{position:fixed;width:600px;height:600px;border-radius:50%;filter:blur(140px);opacity:.1;animation:drift 12s ease-in-out infinite alternate}
-    .blob.one{background:var(--accent2);top:-200px;left:-200px}
-    .blob.two{background:var(--accent);bottom:-200px;right:-200px;animation-delay:-6s}
+    body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .bg-grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:48px 48px;opacity:0.5}
+    .blob{position:fixed;width:600px;height:600px;border-radius:50%;filter:blur(140px);opacity:.06;animation:drift 12s ease-in-out infinite alternate}
+    .blob.one{background:var(--brand);top:-200px;left:-200px}
+    .blob.two{background:#1565C0;bottom:-200px;right:-200px;animation-delay:-6s}
     @keyframes drift{from{transform:translate(0,0)}to{transform:translate(60px,40px)}}
-    .card{position:relative;z-index:1;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:48px 40px;width:420px;box-shadow:0 40px 80px rgba(0,0,0,.5)}
+    .card{position:relative;z-index:1;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:48px 40px;width:420px;box-shadow:0 8px 40px rgba(0,0,0,0.08)}
     .brand{display:flex;align-items:center;gap:12px;margin-bottom:40px}
-    .mark{width:40px;height:40px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--bg)}
-    .brand-name{font-size:20px;font-weight:700;letter-spacing:-.5px}
-    .brand-sub{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace}
-    h2{font-size:28px;font-weight:800;margin-bottom:8px}
+    .mark{width:40px;height:40px;background:var(--brand);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff}
+    .brand-name{font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--text)}
+    .brand-sub{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+    h2{font-size:28px;font-weight:800;margin-bottom:8px;color:var(--text)}
     .sub{color:var(--muted);font-size:14px;margin-bottom:32px}
     label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:8px}
-    .field{margin-bottom:20px}
-    input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;padding:12px 16px;transition:border-color .2s;outline:none}
-    input:focus{border-color:var(--accent)}
-    .btn{width:100%;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:8px;transition:opacity .2s,transform .1s}
-    .btn:hover{opacity:.9;transform:translateY(-1px)}
+    .field{margin-bottom:20px;position:relative}
+    input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:14px;padding:12px 16px;transition:border-color .2s,background .2s;outline:none}
+    input:focus{border-color:var(--brand);background:var(--surface)}
+    .pwd-wrap{position:relative}
+    .pwd-wrap input{padding-right:48px}
+    .toggle-pwd{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;padding:4px;line-height:1;transition:color .15s}
+    .toggle-pwd:hover{color:var(--text)}
+    .btn{width:100%;background:var(--brand);color:#fff;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:8px;transition:background .2s,transform .1s}
+    .btn:hover{background:var(--brand-dark);transform:translateY(-1px)}
     .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-    .err{background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.3);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--danger);margin-top:16px;display:none}
+    .err{background:var(--red-bg);border:1px solid var(--red-chip);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--red);margin-top:16px;display:none}
     .err.show{display:block}
-    .fn{text-align:center;margin-top:24px;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace}
-    .spin{display:none;width:16px;height:16px;border:2px solid var(--bg);border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto}
+    .fn{text-align:center;margin-top:24px;font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+    .spin{display:none;width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto}
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   </style>
@@ -58,14 +68,17 @@
     </div>
     <div class="field">
       <label>Contraseña</label>
-      <input type="password" id="pwd" placeholder="••••••••" autocomplete="current-password" />
+      <div class="pwd-wrap">
+        <input type="password" id="pwd" placeholder="••••••••" autocomplete="current-password" />
+        <button class="toggle-pwd" type="button" onclick="togglePwd()" id="eyeBtn" aria-label="Mostrar contraseña">👁</button>
+      </div>
     </div>
     <button class="btn" id="btn" onclick="login()">
       <span id="lbl">Iniciar sesión</span>
       <div class="spin" id="spin"></div>
     </button>
     <div class="err" id="err"></div>
-    <div class="fn">v2.0 · Sistema piloto · Uso interno</div>
+    <div class="fn">v2.1 · Sistema piloto · Uso interno</div>
   </div>
 
   <script>
@@ -73,7 +86,6 @@
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdjd2FkdHhvcWtid3RxeGpkdGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzYwMzUsImV4cCI6MjA4NzcxMjAzNX0.C6R7kg2OQXN5Rd6-zVbjGbWhMO4kTPHB0uN5i7Q2ZyI';
     const { createClient } = supabase;
     const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
     const ROUTES = { CE: 'ce.html', CIMA: 'cima.html', Direccion: 'dashboard.html' };
 
     (async () => {
@@ -83,7 +95,7 @@
 
     async function redirect(uid) {
       const { data: p } = await sb.from('profiles').select('role').eq('id', uid).single();
-      if (p && ROUTES[p.role]) window.location.href = ROUTES[p.role];
+      if (p && ROUTES[p.role]) window.location.replace(ROUTES[p.role]);
     }
 
     async function login() {
@@ -93,7 +105,12 @@
       const lbl = document.getElementById('lbl');
       const spin = document.getElementById('spin');
       const err = document.getElementById('err');
-      if (!email || !pwd) { showErr('Completa todos los campos.'); return; }
+
+      // Validación local
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      if (!email || !emailOk) { showErr('Ingresa un correo electrónico válido.'); return; }
+      if (!pwd || pwd.length < 8) { showErr('La contraseña debe tener al menos 8 caracteres.'); return; }
+
       btn.disabled = true; lbl.style.display = 'none'; spin.style.display = 'block'; err.classList.remove('show');
       try {
         const { data, error } = await sb.auth.signInWithPassword({ email, password: pwd });
@@ -108,6 +125,18 @@
     function showErr(msg) {
       const e = document.getElementById('err');
       e.textContent = msg; e.classList.add('show');
+    }
+
+    function togglePwd() {
+      const input = document.getElementById('pwd');
+      const btn = document.getElementById('eyeBtn');
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁';
+      }
     }
 
     document.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') login(); }));
